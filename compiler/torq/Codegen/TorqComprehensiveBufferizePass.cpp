@@ -258,7 +258,8 @@ void addTorqComprehensiveBufferizePasses(
 ) {
     funcPassManager.addPass(createEliminateEmptyTensorsPass());
     funcPassManager.addPass(bufferization::createEmptyTensorToAllocTensorPass());
-    funcPassManager.addPass(createIREEComprehensiveBufferizePass(allocationFn, memCpyFn, memSpaceFn)
+    funcPassManager.addPass(
+        createIREEComprehensiveBufferizePass(allocationFn, memCpyFn, memSpaceFn)
     );
     addIREEPostBufferizationPasses(funcPassManager);
 }

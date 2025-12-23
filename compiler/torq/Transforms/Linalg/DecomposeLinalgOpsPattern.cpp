@@ -52,8 +52,7 @@ struct TensorBitcastPattern : public OpRewritePattern<tensor::BitcastOp> {
 
         rewriter.replaceOpWithNewOp<linalg::GenericOp>(
             bitcastOp, resultType, ValueRange{bitcastOp.getSource()}, ValueRange{emptyOp}, maps,
-            iteratorTypes,
-            [&](OpBuilder &nestedBuilder, Location loc, ValueRange args) {
+            iteratorTypes, [&](OpBuilder &nestedBuilder, Location loc, ValueRange args) {
                 auto castOp = nestedBuilder.create<arith::BitcastOp>(
                     loc, resultType.getElementType(), args[0]
                 );
@@ -918,14 +917,12 @@ Value bfloatNegExp(Value x, PatternRewriter &rewriter, Location loc) {
         return fullOutTens;
     };
     auto unmaskedLutIndex = expandBroadcast(
-        expo, expoOffset, i16,
-        [&](OpBuilder &b, Location l, ValueRange args, Value c) {
+        expo, expoOffset, i16, [&](OpBuilder &b, Location l, ValueRange args, Value c) {
             return b.create<arith::AddIOp>(l, args[0], c);
         }
     );
     auto indexRawMask = expandBroadcast(
-        sgnf, sgnfBitmask, i8,
-        [&](OpBuilder &b, Location l, ValueRange args, Value c) {
+        sgnf, sgnfBitmask, i8, [&](OpBuilder &b, Location l, ValueRange args, Value c) {
             return b.create<arith::AndIOp>(l, args[0], c);
         }
     );
@@ -1082,10 +1079,9 @@ struct BfloatSoftmaxPattern : OpRewritePattern<linalg::SoftmaxOp> {
             rewriter
                 .create<linalg::GenericOp>(
                     loc, TypeRange{bf16TensType}, ValueRange{max, x}, ValueRange{emptyLike(x)},
-                    (SmallVector<AffineMap>){
-                        AffineMap::get(rank, 0, nonSoftmaxDims, ctx),
-                        AffineMap::get(rank, 0, dims, ctx), AffineMap::get(rank, 0, dims, ctx)
-                    },
+                    (SmallVector<AffineMap>){AffineMap::get(rank, 0, nonSoftmaxDims, ctx),
+                                             AffineMap::get(rank, 0, dims, ctx),
+                                             AffineMap::get(rank, 0, dims, ctx)},
                     SmallVector<utils::IteratorType>(rank, utils::IteratorType::parallel),
                     [&](OpBuilder &b, Location l, ValueRange args) {
                         auto biased = b.create<arith::SubFOp>(l, args[1], args[0]);
@@ -1126,10 +1122,9 @@ struct BfloatSoftmaxPattern : OpRewritePattern<linalg::SoftmaxOp> {
             rewriter
                 .create<linalg::GenericOp>(
                     loc, TypeRange{bf16TensType}, ValueRange{recip, ex}, ValueRange{emptyLike(ex)},
-                    (SmallVector<AffineMap>){
-                        AffineMap::get(rank, 0, nonSoftmaxDims, ctx),
-                        AffineMap::get(rank, 0, dims, ctx), AffineMap::get(rank, 0, dims, ctx)
-                    },
+                    (SmallVector<AffineMap>){AffineMap::get(rank, 0, nonSoftmaxDims, ctx),
+                                             AffineMap::get(rank, 0, dims, ctx),
+                                             AffineMap::get(rank, 0, dims, ctx)},
                     SmallVector<utils::IteratorType>(rank, utils::IteratorType::parallel),
                     [&](OpBuilder &b, Location l, ValueRange args) {
                         auto result = b.create<arith::MulFOp>(l, args[0], args[1]);
@@ -1184,8 +1179,7 @@ struct QuantizedBatchMatmulPattern : public OpRewritePattern<linalg::QuantizedBa
         Value out = rewriter.create<tensor::EmptyOp>(loc, tTy.getShape(), tTy.getElementType());
         auto g = rewriter.create<linalg::GenericOp>(
             loc, TypeRange{tTy}, ValueRange{tensorI16, cInit}, ValueRange{out},
-            ArrayRef<AffineMap>{id, id, id}, iters,
-            [&](OpBuilder &b, Location l, ValueRange args) {
+            ArrayRef<AffineMap>{id, id, id}, iters, [&](OpBuilder &b, Location l, ValueRange args) {
                 // TODO: double-check if zeropoint must be substracted or added using llvm-cpu with
                 // a given input matrix
                 Value sum = b.create<arith::SubIOp>(l, args[0], args[1]);
@@ -1322,8 +1316,7 @@ class BfloatRsqrtPattern : public OpRewritePattern<linalg::GenericOp> {
                     return b.create<arith::ShRSIOp>(loc, args[0], one);
                 }
             ),
-            i16TensorType,
-            [&](OpBuilder &b, Location l, ValueRange args) {
+            i16TensorType, [&](OpBuilder &b, Location l, ValueRange args) {
                 return b.create<arith::SubIOp>(loc, magic, args[0]);
             }
         );
@@ -1339,8 +1332,7 @@ class BfloatRsqrtPattern : public OpRewritePattern<linalg::GenericOp> {
             loc, y,
             broadcast(
                 rewriter.create<arith::MulFOp>(loc, rewriter.create<arith::MulFOp>(loc, x2, y), y),
-                bfTensorType,
-                [&](OpBuilder &b, Location l, ValueRange args) {
+                bfTensorType, [&](OpBuilder &b, Location l, ValueRange args) {
                     return b.create<arith::SubFOp>(loc, threeHalfs, args[0]);
                 }
             )

@@ -51,10 +51,11 @@ LogicalResult GatherPattern::transform(torq_hl::GatherOp op, PatternRewriter &re
     uint32_t alu_width = alu_group_width / group_size;
     uint32_t max_input = 256 / alu_width;
 
-    LLVM_DEBUG(llvm::dbgs() << "Indices strides:\n";
-               for (int i = 0; i < indices_strides.size(); ++i) llvm::dbgs()
-               << indices_strides[i] << " ";
-               llvm::dbgs() << "\nchannelCount: " << channelCount << "\n";);
+    LLVM_DEBUG(
+        llvm::dbgs() << "Indices strides:\n";
+        for (int i = 0; i < indices_strides.size(); ++i) llvm::dbgs() << indices_strides[i] << " ";
+        llvm::dbgs() << "\nchannelCount: " << channelCount << "\n";
+    );
 
     // Create split of max_entries since idx dimension maybe aligned to 64 in activation cases.
     auto dense_splits = groupAsDenseDims(indices_shape, indices_strides);

@@ -112,8 +112,8 @@ struct TORQSession : public PluginSession<
 
 IREE_DEFINE_COMPILER_OPTION_FLAGS(::mlir::syna::torq::TorqTargetOptions);
 
-extern "C" bool iree_register_compiler_plugin_torq(mlir::iree_compiler::PluginRegistrar *registrar
-) {
+extern "C" bool
+iree_register_compiler_plugin_torq(mlir::iree_compiler::PluginRegistrar *registrar) {
     registrar->registerPlugin<::mlir::syna::torq::TORQSession>("torq");
     return true;
 }

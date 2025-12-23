@@ -12,11 +12,11 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif  // __cplusplus
+#endif // __cplusplus
 
-iree_status_t iree_hal_torq_event_create(iree_allocator_t host_allocator,
-                                         iree_hal_event_t** out_event);
+iree_status_t
+iree_hal_torq_event_create(iree_allocator_t host_allocator, iree_hal_event_t **out_event);
 
 #ifdef __cplusplus
-}  // extern "C"
-#endif  // __cplusplus
+} // extern "C"
+#endif // __cplusplus

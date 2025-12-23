@@ -526,8 +526,10 @@ struct ReshapeToCollapseExpand : public OpRewritePattern<tensor::ReshapeOp> {
         SmallVector<int64_t> collapseShape = findCollapseShape(srcShape);
         SmallVector<int64_t> dstCollapseShape = findCollapseShape(dstShape);
         if (collapseShape != dstCollapseShape) {
-            op.emitError("ReshapeToCollapseExpand: cannot optimize reshape op due to different "
-                         "collapse shape");
+            op.emitError(
+                "ReshapeToCollapseExpand: cannot optimize reshape op due to different "
+                "collapse shape"
+            );
             return failure();
         }
 
@@ -578,7 +580,8 @@ void populateOptimizeElementwiseBinaryOpPatterns(
     patterns.add<BroadcastElementwiseBinaryOpPattern>(context);
     patterns.add<ReshapeToCollapseExpand>(context);
     tensor::populateReassociativeReshapeFoldingPatterns(patterns);
-    patterns.add<ComposeExpandOfCollapseOp<tensor::ExpandShapeOp, tensor::CollapseShapeOp>>(context
+    patterns.add<ComposeExpandOfCollapseOp<tensor::ExpandShapeOp, tensor::CollapseShapeOp>>(
+        context
     );
 }
 

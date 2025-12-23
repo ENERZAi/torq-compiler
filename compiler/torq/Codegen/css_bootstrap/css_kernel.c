@@ -40,9 +40,10 @@ static inline void halt() {
     __asm__ volatile("" ::: "memory");
 
     // shutdown emulation using the sifive_test device
-    asm volatile("li a0, 0x5555\n"   // Exit code (0x3333 fail 0x5555 success)"
-                 "li a1, 0x100000\n" // Address of the exit device"
-                 "sw a0, 0(a1)\n"    // Write the exit code to the device"
+    asm volatile(
+        "li a0, 0x5555\n"   // Exit code (0x3333 fail 0x5555 success)"
+        "li a1, 0x100000\n" // Address of the exit device"
+        "sw a0, 0(a1)\n"    // Write the exit code to the device"
     );
 
     // Wait for the emulation to exit

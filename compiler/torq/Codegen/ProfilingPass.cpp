@@ -87,7 +87,8 @@ struct ProfStruct {
 
     void
     addToSliceTimeline(int id, uint64_t start, uint64_t end, std::string opName, std::string loc) {
-        sliceTimeline.push_back({id, start, end, opName, loc}
+        sliceTimeline.push_back(
+            {id, start, end, opName, loc}
         ); // loc+1 to match with the original line number in dump
     }
 
@@ -101,7 +102,8 @@ struct ProfStruct {
     }
 
     void addToDmaTimeline(DmaType dmaType, uint64_t start, uint64_t end, std::string loc) {
-        dmaTimeline.push_back({dmaType, start, end, loc}
+        dmaTimeline.push_back(
+            {dmaType, start, end, loc}
         ); // loc+1 to match with the original line number in dump
     }
 

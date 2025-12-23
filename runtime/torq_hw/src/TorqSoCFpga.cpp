@@ -5,20 +5,20 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "TorqSoCFpga.h"
-#include "reg/torq_regs_host_view.h"
-#include "reg/torq_nss_regs.h"
 #include "reg/torq_css_regs.h"
+#include "reg/torq_nss_regs.h"
+#include "reg/torq_regs_host_view.h"
 
-#include <iostream>
 #include <cstring>
+#include <iostream>
 #include <mutex>
 
 extern "C" {
-  #include <sys/types.h>
-  #include <sys/stat.h>
-  #include <fcntl.h>
-  #include <sys/mman.h>
-  #include <unistd.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 }
 
 using namespace std;
@@ -41,8 +41,10 @@ bool TorqSoCFpga::open() {
         return false;
     }
 
-    const uint64_t reg_offset = 0;        /*offset 0 maps regspace (including lvramspace) */
-    _regVBase = (uint8_t *)mmap(NULL, REG_SIZE__TORQ_HV, PROT_READ | PROT_WRITE, MAP_SHARED, devNode, reg_offset);
+    const uint64_t reg_offset = 0; /*offset 0 maps regspace (including lvramspace) */
+    _regVBase = (uint8_t *)mmap(
+        NULL, REG_SIZE__TORQ_HV, PROT_READ | PROT_WRITE, MAP_SHARED, devNode, reg_offset
+    );
     if (!_regVBase) {
         cerr << "error mapping torq regspace" << endl;
         ::close(devNode);
@@ -51,7 +53,9 @@ bool TorqSoCFpga::open() {
     }
     _lramVBase = _regVBase;
 
-    _xramVBase = (uint8_t *)mmap(NULL, DDR_MAP_REGION, PROT_READ | PROT_WRITE, MAP_SHARED, devNode, MMAP_DDR_OFFSET);
+    _xramVBase = (uint8_t *)mmap(
+        NULL, DDR_MAP_REGION, PROT_READ | PROT_WRITE, MAP_SHARED, devNode, MMAP_DDR_OFFSET
+    );
     if (!_xramVBase) {
         cerr << "error mapping ddr region" << endl;
         munmap(_regVBase, REG_SIZE__TORQ_HV);
@@ -76,22 +80,16 @@ bool TorqSoCFpga::close() {
     return true;
 }
 
-bool TorqSoCFpga::wfi() {
-    return true;
-}
+bool TorqSoCFpga::wfi() { return true; }
 
-bool TorqSoCFpga::cli() {
-    return true;
-}
+bool TorqSoCFpga::cli() { return true; }
 
-static void write32(uint8_t *base, uint32_t addr, uint32_t data)
-{
+static void write32(uint8_t *base, uint32_t addr, uint32_t data) {
     volatile uint32_t *p = (volatile uint32_t *)(base + addr);
     *p = data;
 }
 
-static uint32_t read32(const uint8_t *base, uint32_t addr)
-{
+static uint32_t read32(const uint8_t *base, uint32_t addr) {
     volatile uint32_t *p = (volatile uint32_t *)(base + addr);
     return *p;
 }
@@ -101,7 +99,7 @@ bool TorqSoCFpga::writeReg32(uint32_t addr, uint32_t data) {
     return true;
 }
 
-bool TorqSoCFpga::readReg32(uint32_t addr, uint32_t & data) const {
+bool TorqSoCFpga::readReg32(uint32_t addr, uint32_t &data) const {
     data = read32(_regVBase, addr);
     return true;
 }
@@ -111,14 +109,14 @@ bool TorqSoCFpga::writeLram32(uint32_t addr, uint32_t data) {
     return true;
 }
 
-bool TorqSoCFpga::readLram32(uint32_t addr, uint32_t & data) const {
+bool TorqSoCFpga::readLram32(uint32_t addr, uint32_t &data) const {
     data = read32(_lramVBase, addr);
     return true;
 }
 
 bool TorqSoCFpga::writeXram(uint32_t addr, size_t size, const void *dataIn) {
     const uint8_t *p = _xramVBase + addr;
-    memcpy((void*)p, dataIn, size);
+    memcpy((void *)p, dataIn, size);
     return true;
 }
 
@@ -128,4 +126,4 @@ bool TorqSoCFpga::readXram(uint32_t addr, size_t size, void *dataOut) const {
     return true;
 }
 
-}// synaptics namespace
+} // namespace synaptics

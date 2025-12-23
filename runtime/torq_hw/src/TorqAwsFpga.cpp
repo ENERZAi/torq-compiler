@@ -8,12 +8,12 @@
 
 #include "fpga_pci.h"
 
-#include "reg/torq_regs_host_view.h"
-#include "reg/torq_nss_regs.h"
 #include "reg/torq_css_regs.h"
+#include "reg/torq_nss_regs.h"
+#include "reg/torq_regs_host_view.h"
 
-#include <iostream>
 #include <cstring>
+#include <iostream>
 #include <mutex>
 
 using namespace std;
@@ -29,7 +29,7 @@ bool TorqAwsFpga::open() {
         cerr << "Failed to attach xram_pci_hdl" << endl;
         return false;
     }
-    const uint64_t xram_base = 0x800000000; //ddr_c
+    const uint64_t xram_base = 0x800000000; // ddr_c
     const uint64_t xram_size = 0x400000000;
     if (fpga_pci_get_address(xram_pci_hdl, xram_base, xram_size, (void **)&_xramVBase) != 0) {
         cerr << "Failed to get xram_vbase" << endl;
@@ -41,7 +41,7 @@ bool TorqAwsFpga::open() {
         return false;
     }
     const uint64_t lram_base = 0x00000000;
-    const uint64_t lram_size  = 0x00080000;
+    const uint64_t lram_size = 0x00080000;
     if (fpga_pci_get_address(npu_pci_hdl, lram_base, lram_size, (void **)&_lramVBase) != 0) {
         cerr << "Failed to get lram_vbase" << endl;
         return false;
@@ -70,22 +70,16 @@ bool TorqAwsFpga::close() {
     return true;
 }
 
-bool TorqAwsFpga::wfi() {
-    return true;
-}
+bool TorqAwsFpga::wfi() { return true; }
 
-bool TorqAwsFpga::cli() {
-    return true;
-}
+bool TorqAwsFpga::cli() { return true; }
 
-static void write32(uint8_t *base, uint32_t addr, uint32_t data)
-{
+static void write32(uint8_t *base, uint32_t addr, uint32_t data) {
     volatile uint32_t *p = (volatile uint32_t *)(base + addr);
     *p = data;
 }
 
-static uint32_t read32(const uint8_t *base, uint32_t addr)
-{
+static uint32_t read32(const uint8_t *base, uint32_t addr) {
     volatile uint32_t *p = (volatile uint32_t *)(base + addr);
     return *p;
 }
@@ -95,7 +89,7 @@ bool TorqAwsFpga::writeReg32(uint32_t addr, uint32_t data) {
     return true;
 }
 
-bool TorqAwsFpga::readReg32(uint32_t addr, uint32_t & data) const {
+bool TorqAwsFpga::readReg32(uint32_t addr, uint32_t &data) const {
     data = read32(_regVBase, addr);
     return true;
 }
@@ -105,23 +99,21 @@ bool TorqAwsFpga::writeLram32(uint32_t addr, uint32_t data) {
     return true;
 }
 
-bool TorqAwsFpga::readLram32(uint32_t addr, uint32_t & data) const {
+bool TorqAwsFpga::readLram32(uint32_t addr, uint32_t &data) const {
     data = read32(_lramVBase, addr);
     return true;
 }
 
 static const size_t rmw_n = 16;
-static const size_t rmw_m = rmw_n-1;
+static const size_t rmw_m = rmw_n - 1;
 static const size_t a_lsh = 2;
 
-static void xramWrite(uint8_t * base, uint32_t addr, size_t size, uint8_t *data)
-{
-    memcpy(base + (addr<<a_lsh), data, size);
+static void xramWrite(uint8_t *base, uint32_t addr, size_t size, uint8_t *data) {
+    memcpy(base + (addr << a_lsh), data, size);
 }
 
-static void xramRead(uint8_t * base, uint32_t addr, size_t size, uint8_t *data)
-{
-    memcpy(data, base + (addr<<a_lsh), size);
+static void xramRead(uint8_t *base, uint32_t addr, size_t size, uint8_t *data) {
+    memcpy(data, base + (addr << a_lsh), size);
 }
 
 bool TorqAwsFpga::writeXram(uint32_t addr, size_t size, const void *dataIn) {
@@ -129,7 +121,7 @@ bool TorqAwsFpga::writeXram(uint32_t addr, size_t size, const void *dataIn) {
         cerr << "Out of range" << endl;
         return false;
     }
-    auto data = (const uint8_t *) dataIn;
+    auto data = (const uint8_t *)dataIn;
     uint8_t buf[rmw_n << a_lsh];
     size_t a[3], n[3];
     a[0] = addr;
@@ -145,10 +137,10 @@ bool TorqAwsFpga::writeXram(uint32_t addr, size_t size, const void *dataIn) {
     for (size_t i = 0; i < 3; i++) {
         if (!n[i])
             continue;
-        if (i!=1) { //read-modify-write
-            xramRead(_xramVBase, a[i]&~rmw_m, rmw_n, buf);
-            memcpy(&buf[a[i]&rmw_m], data, n[i]);
-            xramWrite(_xramVBase, a[i]&~rmw_m, rmw_n, buf);
+        if (i != 1) { // read-modify-write
+            xramRead(_xramVBase, a[i] & ~rmw_m, rmw_n, buf);
+            memcpy(&buf[a[i] & rmw_m], data, n[i]);
+            xramWrite(_xramVBase, a[i] & ~rmw_m, rmw_n, buf);
             data += n[i];
         }
         else {
@@ -170,23 +162,24 @@ bool TorqAwsFpga::readXram(uint32_t addr, size_t size, void *dataOut) const {
         return false;
     }
     auto data = (uint8_t *)dataOut;
-    uint8_t buf[rmw_n<<a_lsh];
+    uint8_t buf[rmw_n << a_lsh];
     size_t a[3], n[3];
     a[0] = addr;
-    n[0] = (a[0]&rmw_m)?rmw_n-(a[0]&rmw_m):0;
-    if (n[0]>size) n[0] = size;
+    n[0] = (a[0] & rmw_m) ? rmw_n - (a[0] & rmw_m) : 0;
+    if (n[0] > size)
+        n[0] = size;
     size -= n[0];
-    a[1] = a[0]+n[0];
-    n[1] = size&~rmw_m;
+    a[1] = a[0] + n[0];
+    n[1] = size & ~rmw_m;
     size -= n[1];
-    a[2] = a[1]+n[1];
+    a[2] = a[1] + n[1];
     n[2] = size;
-    for (size_t i=0; i<3; i++) {
+    for (size_t i = 0; i < 3; i++) {
         if (!n[i])
             continue;
-        if (i!=1) { //read-modify-write
-            xramRead(_xramVBase, a[i]&~rmw_m, rmw_n, buf);
-            memcpy(data, &buf[a[i]&rmw_m], n[i]);
+        if (i != 1) { // read-modify-write
+            xramRead(_xramVBase, a[i] & ~rmw_m, rmw_n, buf);
+            memcpy(data, &buf[a[i] & rmw_m], n[i]);
             data += n[i];
         }
         else {
@@ -202,4 +195,4 @@ bool TorqAwsFpga::readXram(uint32_t addr, size_t size, void *dataOut) const {
     return true;
 }
 
-}  // synaptics namespace
+} // namespace synaptics

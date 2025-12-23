@@ -908,8 +908,9 @@ LogicalResult Serializer::serializeCssInvocation(torq_hl::CreateInvocationOp &cr
 
     auto text = executableBinaryOp.getData();
 
-    LLVM_DEBUG({ llvm::dbgs() << "*** CSS text: size = " << text.getRawData().size() << " ***\n"; }
-    );
+    LLVM_DEBUG({
+        llvm::dbgs() << "*** CSS text: size = " << text.getRawData().size() << " ***\n";
+    });
 
     if (failed(addSegment(xramAddress.value(), text, true))) {
         return failure();
@@ -963,8 +964,8 @@ LogicalResult Serializer::serializeHostInvocation(torq_hl::CreateInvocationOp &c
     return success();
 }
 
-LogicalResult Serializer::serializeSliceInvocation(torq_hl::CreateInvocationOp &createInvocationOp
-) {
+LogicalResult
+Serializer::serializeSliceInvocation(torq_hl::CreateInvocationOp &createInvocationOp) {
 
     // This function generates the bitstream for a task, this is stored only in
     // XRAM segments and will be loaded by the main NSS program
@@ -1181,7 +1182,8 @@ LogicalResult Serializer::saveCodeSegments() {
 
             auto dataRef = flatbuffers_uint8_vec_create(_builder, segment->data, segment->size);
 
-            _segments.push_back(iree_hal_torq_Segment_create(_builder, segment->xram_addr, dataRef)
+            _segments.push_back(
+                iree_hal_torq_Segment_create(_builder, segment->xram_addr, dataRef)
             );
 
             _savedSegments.insert(segment->data);
@@ -1379,8 +1381,8 @@ Serializer::serializeHostCode(mlir::FunctionOpInterface funcOp) {
     }
 
     if (clTorqDescriptorDumpDir != "") {
-        llvm::errs(
-        ) << "This model requires host programs that are not supported in descriptor dumps\n";
+        llvm::errs()
+            << "This model requires host programs that are not supported in descriptor dumps\n";
         return failure();
     }
 

@@ -78,9 +78,10 @@ LogicalResult TransposeReshapePattern::transform(
     groupContinuousTransposeReshapeDim(
         op, inputShape, outShape, leftDimSize, transposeDimSize, rightDimSize
     );
-    LLVM_DEBUG(llvm::dbgs() << "Identified (leftDimSize, transposeDimSize, rightDimSize) -> ("
-                            << leftDimSize << "," << transposeDimSize << ",`" << rightDimSize
-                            << ")\n";);
+    LLVM_DEBUG(
+        llvm::dbgs() << "Identified (leftDimSize, transposeDimSize, rightDimSize) -> ("
+                     << leftDimSize << "," << transposeDimSize << ",`" << rightDimSize << ")\n";
+    );
 
     frame_size = transposeDimSize;
     input_channels = rightDimSize;

@@ -73,7 +73,8 @@ class GenericOpPattern : public OpConversionPattern<torq_hl::GenericOp> {
         SmallVector<int64_t> ndlStrides;
 
         // TODO: handle offset
-        if (failed(getFlattenedAffineExpr(dLoop.getResult(0), dLoop.getNumDims(), 0, &ndlStrides)
+        if (failed(
+                getFlattenedAffineExpr(dLoop.getResult(0), dLoop.getNumDims(), 0, &ndlStrides)
             )) {
             return std::nullopt;
         }
@@ -266,8 +267,8 @@ class GenericOpPattern : public OpConversionPattern<torq_hl::GenericOp> {
 
         RegNdlDimsData acpr = {
             {DimType::L, RegDimTag::B, pSize, 1},
-            {DimType::L, RegDimTag::D, HwInfo::act_width, HwInfo::pram_dsize
-            },                                // required by the hardware
+            {DimType::L, RegDimTag::D, HwInfo::act_width,
+             HwInfo::pram_dsize},             // required by the hardware
             {DimType::L, RegDimTag::S, 1, 1}, // required by the hardware
             {DimType::H, RegDimTag::T, 0, 1}  // this forces the acpr to keep running continuously
         };

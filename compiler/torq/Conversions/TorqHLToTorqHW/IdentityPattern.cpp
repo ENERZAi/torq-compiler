@@ -125,8 +125,9 @@ LogicalResult IdentityPattern::transform(torq_hl::IdentityOp op, PatternRewriter
 #if IDENTITY_EVEN_ODD_WITH_APPEND
             {blockSize},
 #else
-            {{blockSize / actBlockSize, actBlockSize / 2}, {actBlockSize / 2, 1}, {2, blockSize / 2}
-            },
+            {{blockSize / actBlockSize, actBlockSize / 2},
+             {actBlockSize / 2, 1},
+             {2, blockSize / 2}},
 #endif
             elementType
         );

@@ -18,13 +18,12 @@ namespace synaptics {
 class Timer {
     typedef std::chrono::steady_clock Clock;
 
-public:
+  public:
     typedef int64_t Duration;
     typedef std::chrono::microseconds DurationUnit;
 
     /// Create timer and start time measurement.
-    Timer(bool auto_start = true)
-    {
+    Timer(bool auto_start = true) {
         if (auto_start)
             start();
     }
@@ -35,23 +34,20 @@ public:
 
     /// Get elapsed time since last start.
     /// @return duration in microseconds
-    Duration get() const
-    {
+    Duration get() const {
         auto end = Clock::now();
         return std::chrono::duration_cast<DurationUnit>(end - _start).count();
     }
 
-private:
+  private:
     Clock::time_point _start;
 };
 
-
 /// Print timer in ms
-inline std::ostream& operator<<(std::ostream& out, const Timer& tmr)
-{
+inline std::ostream &operator<<(std::ostream &out, const Timer &tmr) {
     float t = tmr.get() / 1.e3;
     out << std::fixed << std::setprecision(2) << t << " ms";
     return out;
 }
 
-}  // namespace synaptics
+} // namespace synaptics

@@ -106,9 +106,10 @@ TransposePattern::transform(torq_hl::TransposeOp op, PatternRewriter &rewriter) 
     groupContinuousDim(
         inputShape, leftDim, transposeDim, rightDim, leftDimSize, transposeDimSize, rightDimSize
     );
-    LLVM_DEBUG(llvm::dbgs() << "Identified (leftDimSize, transposeDimSize, rightDimSize) -> ("
-                            << leftDimSize << "," << transposeDimSize << "," << rightDimSize
-                            << ")\n";);
+    LLVM_DEBUG(
+        llvm::dbgs() << "Identified (leftDimSize, transposeDimSize, rightDimSize) -> ("
+                     << leftDimSize << "," << transposeDimSize << "," << rightDimSize << ")\n";
+    );
 
     // Validate whether the identified dims are continuous w.r.t the stride
     validateContinuousDim(

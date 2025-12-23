@@ -385,8 +385,10 @@ FailureOr<DenseIntOrFPElementsAttr> computeValueFromOps(
     }
 
     // call the function we compiled
-    using MainFnType =
-        void (*)(iree_hal_executable_environment_v0_t *, iree_hal_executable_dispatch_state_v0_t *, iree_hal_executable_workgroup_state_v0_t *);
+    using MainFnType = void (*)(
+        iree_hal_executable_environment_v0_t *, iree_hal_executable_dispatch_state_v0_t *,
+        iree_hal_executable_workgroup_state_v0_t *
+    );
 
     auto mainFn = reinterpret_cast<MainFnType>(main.get());
 

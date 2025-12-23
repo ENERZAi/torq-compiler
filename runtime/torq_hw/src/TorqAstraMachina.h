@@ -12,7 +12,7 @@
 #define TORQ_NODE "/dev/torq"
 
 #define DMABUF_USE_UNCACHED
-#if defined (DMABUF_USE_UNCACHED)
+#if defined(DMABUF_USE_UNCACHED)
 #define DMABUF_NODE "/dev/dma_heap/system-cust-uncached"
 #else
 #define DMABUF_NODE "/dev/dma_heap/system"
@@ -28,7 +28,7 @@ namespace synaptics {
 #define TORQ_IOCTL_WAIT_BITMASK_SLC_0 3
 #define TORQ_IOCTL_WAIT_BITMASK_SLC_1 4
 
-class TorqAstraMachina: public TorqHw {
+class TorqAstraMachina : public TorqHw {
   public:
     TorqAstraMachina(uint32_t xramStartAddr, size_t xramSize);
     ~TorqAstraMachina();
@@ -44,7 +44,10 @@ class TorqAstraMachina: public TorqHw {
     bool load() override;
     bool release() override;
     bool start(uint32_t lramAddr) override;
-    bool wait(bool nssCfg = true, bool slice1Cfg = false, bool slice2Cfg = false, bool dmaInCfg = false, bool dmaOutCfg = false) override;
+    bool wait(
+        bool nssCfg = true, bool slice1Cfg = false, bool slice2Cfg = false, bool dmaInCfg = false,
+        bool dmaOutCfg = false
+    ) override;
     bool end() override;
 
   private:
@@ -65,9 +68,9 @@ class TorqAstraMachina: public TorqHw {
     bool wfi() override;
     bool cli() override;
     bool writeReg32(uint32_t addr, uint32_t data) override;
-    bool readReg32(uint32_t addr, uint32_t & data) const override;
+    bool readReg32(uint32_t addr, uint32_t &data) const override;
     bool writeLram32(uint32_t addr, uint32_t data) override;
-    bool readLram32(uint32_t addr, uint32_t & data) const override;
+    bool readLram32(uint32_t addr, uint32_t &data) const override;
     void alignXram();
 
     bool createNetwork();
@@ -80,8 +83,6 @@ class TorqAstraMachina: public TorqHw {
     bool setupXramSpace();
     bool startXramAccess() const;
     bool endXramAccess() const;
-
 };
 
 } // namespace synaptics
-
