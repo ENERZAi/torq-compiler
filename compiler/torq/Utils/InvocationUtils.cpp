@@ -32,8 +32,10 @@ struct ProgramExecutor {
         auto startedInvocationOp = startedInvocation.getDefiningOp<torq_hl::CreateInvocationOp>();
 
         if (!startedInvocationOp) {
-            return startOp.emitError("Expected an invocation created by a create_invocation op or "
-                                     "block argument pointing to one");
+            return startOp.emitError(
+                "Expected an invocation created by a create_invocation op or "
+                "block argument pointing to one"
+            );
         }
 
         // notify the listener that we are starting the invocation
@@ -83,8 +85,10 @@ struct ProgramExecutor {
         auto waitedInvocationOp = waitedInvocation.getDefiningOp<torq_hl::CreateInvocationOp>();
 
         if (!waitedInvocationOp) {
-            return waitOp.emitError("Expected an invocation created by a create_invocation op or "
-                                    "block argument pointing to one");
+            return waitOp.emitError(
+                "Expected an invocation created by a create_invocation op or "
+                "block argument pointing to one"
+            );
         }
 
         SmallVector<Value> waitReturnValues;

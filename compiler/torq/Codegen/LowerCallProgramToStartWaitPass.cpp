@@ -119,7 +119,8 @@ class CallProgramPattern : public OpRewritePattern<torq_hl::CallProgramOp> {
                 createMemRefTypeWithMemorySpace(argsAddresses.getType(), torq_hl::MemorySpace::Lram)
             );
 
-            if (failed(createTorqCopy(rewriter, callOp.getLoc(), argsAddresses, lramArgsAddresses)
+            if (failed(
+                    createTorqCopy(rewriter, callOp.getLoc(), argsAddresses, lramArgsAddresses)
                 )) {
                 llvm::report_fatal_error("failed to create copy to LRAM");
             }

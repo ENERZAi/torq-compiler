@@ -508,9 +508,10 @@ bool usedOnlyAsPValue(Value value) {
 GenericOpParam getParamFromAdaptor(OpOperand *opOperand, linalg::GenericOp::Adaptor &adaptor) {
 
     Value value = adaptor.getOperands()[opOperand->getOperandNumber()];
-    AffineMapAttr attr =
-        AffineMapAttr::get(cast<linalg::GenericOp>(opOperand->getOwner())
-                               .getIndexingMapsArray()[opOperand->getOperandNumber()]);
+    AffineMapAttr attr = AffineMapAttr::get(
+        cast<linalg::GenericOp>(opOperand->getOwner())
+            .getIndexingMapsArray()[opOperand->getOperandNumber()]
+    );
 
     return torq_hl::GenericOpParam(value, attr);
 }

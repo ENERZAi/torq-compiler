@@ -282,10 +282,12 @@ llvm::FailureOr<SmallVector<OpResultIterationDomain>> linalgOperandSlicesFromIte
             continue;
         }
 
-        oprandIterDomains.push_back(std::make_tuple(
-            operandOpResult, SmallVector<OpFoldResult>{rewriter.getIndexAttr(0)},
-            SmallVector<OpFoldResult>{rewriter.getIndexAttr(1)}
-        ));
+        oprandIterDomains.push_back(
+            std::make_tuple(
+                operandOpResult, SmallVector<OpFoldResult>{rewriter.getIndexAttr(0)},
+                SmallVector<OpFoldResult>{rewriter.getIndexAttr(1)}
+            )
+        );
     }
 
     return oprandIterDomains;
@@ -369,9 +371,11 @@ llvm::FailureOr<bool> checkTileFitsInMemory(
     llvm::DenseMap<IntegerAttr, int64_t> fusedGroupsBytes;
 
     std::deque<OpIterationDomain> queue;
-    queue.push_back(std::make_tuple(
-        consumerOp, SmallVector<OpFoldResult>(offsets), SmallVector<OpFoldResult>(sizes)
-    ));
+    queue.push_back(
+        std::make_tuple(
+            consumerOp, SmallVector<OpFoldResult>(offsets), SmallVector<OpFoldResult>(sizes)
+        )
+    );
     while (!queue.empty()) {
         // Can't use structured bindings because we later capture some of them in a lambda (C++20
         // supports it):
@@ -455,12 +459,12 @@ llvm::FailureOr<bool> checkTileFitsInMemory(
                                         principalOperand->getOwner()
                                     )
                                         .Case<linalg::Conv2DNhwcHwcfOp>([](auto convOp) {
-                                            return convOp.getStrides().template getValues<int64_t>(
-                                            );
+                                            return convOp.getStrides()
+                                                .template getValues<int64_t>();
                                         })
                                         .Case<linalg::DepthwiseConv2DNhwcHwcOp>([](auto convOp) {
-                                            return convOp.getStrides().template getValues<int64_t>(
-                                            );
+                                            return convOp.getStrides()
+                                                .template getValues<int64_t>();
                                         })
                                         .Case<
                                             linalg::PoolingNhwcMaxOp,
@@ -468,8 +472,8 @@ llvm::FailureOr<bool> checkTileFitsInMemory(
                                             linalg::PoolingNhwcMinOp,
                                             linalg::PoolingNhwcMinUnsignedOp,
                                             linalg::PoolingNhwcSumOp>([](auto convOp) {
-                                            return convOp.getStrides().template getValues<int64_t>(
-                                            );
+                                            return convOp.getStrides()
+                                                .template getValues<int64_t>();
                                         })
                                         .Default([&](auto) -> SmallVector<int64_t> { return {}; });
                                 return llvm::any_of(strides, [](auto s) { return s > 1; });

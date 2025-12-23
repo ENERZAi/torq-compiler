@@ -313,10 +313,11 @@ template <typename OpT> static KernelEncoding getResizeLikeEncoding(OpT op) {
 
     int shapeAlign =
         outShape[2] *
-        (torq::align_ceil(outShape[3], 32)
-        ); // Currently resize processes each row with 32-byte alignment for the last
-           // dimension to ensure proper memory alignment and vectorization efficiency.
-           // TODO: Can later optimize alignment size if hardware supports different values
+        (torq::align_ceil(
+            outShape[3], 32
+        )); // Currently resize processes each row with 32-byte alignment for the last
+            // dimension to ensure proper memory alignment and vectorization efficiency.
+            // TODO: Can later optimize alignment size if hardware supports different values
 
     LLVM_DEBUG({
         llvm::dbgs() << "encodeResize: outShape " << outShape[1] << "x" << outShape[2] << "x"

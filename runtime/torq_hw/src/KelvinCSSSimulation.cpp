@@ -30,7 +30,7 @@ static int32_t FLAG_torq_kelvin_debug = 0;
 
 #define LOG(...)                                                                                   \
     do {                                                                                           \
-        if (FLAG_torq_kelvin_verbose) {                                                           \
+        if (FLAG_torq_kelvin_verbose) {                                                            \
             printf(__VA_ARGS__);                                                                   \
         }                                                                                          \
     } while (0)
@@ -166,9 +166,7 @@ static void read_back_memory_and_registers(void *cpu, KelvinSimulator *kelvin_si
             css_sw__reg_read(cpu, REG_ADDR__TORQ_CV_CSS_REGS + irqRegsOffets[i]);
         if (irqAfterValue[i] != irqBeforeValue) {
             LOG("updating irqReg[%d] = 0x%08x (was 0x%08x)\n", i, irqAfterValue[i], irqBeforeValue);
-            css_sw__reg_write(
-                cpu, REG_ADDR__TORQ_CV_CSS_REGS + irqRegsOffets[i], irqAfterValue[i]
-            );
+            css_sw__reg_write(cpu, REG_ADDR__TORQ_CV_CSS_REGS + irqRegsOffets[i], irqAfterValue[i]);
         }
     }
 }

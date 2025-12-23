@@ -45,8 +45,8 @@ class LinalgToTorqHLConversionPass
         ConversionTarget conversionTargetLinalg(getContext());
 
         conversionTargetLinalg.addLegalDialect<
-            torq_hl::TorqHLDialect, func::FuncDialect, tensor::TensorDialect, arith::ArithDialect>(
-        );
+            torq_hl::TorqHLDialect, func::FuncDialect, tensor::TensorDialect,
+            arith::ArithDialect>();
 
         conversionTargetLinalg.addDynamicallyLegalDialect<linalg::LinalgDialect>(
             [](Operation *op) -> std::optional<bool> {

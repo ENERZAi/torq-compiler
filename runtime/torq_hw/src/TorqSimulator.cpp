@@ -8,14 +8,14 @@
 #include "KelvinCSSSimulation.h"
 #include "QemuCSSSimulation.h"
 
-#include "torq_cm.h"
 #include "css_sw/common/css_sw_reg_inc.h"
 #include "reg/torq_css_regs.h"
 #include "reg/torq_nss_regs.h"
 #include "reg/torq_regs_host_view.h"
+#include "torq_cm.h"
 
-#include "iree/hal/local/executable_library.h"
 #include "iree/base/internal/flags.h"
+#include "iree/hal/local/executable_library.h"
 
 #include <cstring>
 #include <iostream>
@@ -41,7 +41,7 @@ bool TorqSimulator::open() {
 #endif
 
     torq_cm__set_css_cpu_code(cm, simulator);
-    
+
     if (!cm) {
         cerr << "Failed to open CModel" << endl;
         return false;

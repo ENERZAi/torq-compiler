@@ -1032,10 +1032,11 @@ LogicalResult convertVirtualToPhysicalMemRefs(
                 op->dump();
                 llvm::dbgs() << "Operands:\n";
                 for (auto &opOperand : memrefOperands) {
-                    llvm::dbgs(
-                    ) << "  - size "
-                      << getEncodedTotalSizeBytes(cast<MemRefType>(opOperand->get().getType()))
-                      << " bytes";
+                    llvm::dbgs() << "  - size "
+                                 << getEncodedTotalSizeBytes(
+                                        cast<MemRefType>(opOperand->get().getType())
+                                    )
+                                 << " bytes";
                     llvm::dbgs() << " to swap in " << vm.isSwappedOut(opOperand->get()) << " ";
                     opOperand->get().dump();
                 }

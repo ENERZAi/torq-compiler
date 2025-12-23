@@ -88,8 +88,8 @@ class LinalgToTorqHLGenericPass : public LinalgToTorqHLGenericBase<LinalgToTorqH
         target.addLegalOp<linalg::YieldOp>();
 
         target.addLegalDialect<
-            torq_hl::TorqHLDialect, func::FuncDialect, tensor::TensorDialect, arith::ArithDialect>(
-        );
+            torq_hl::TorqHLDialect, func::FuncDialect, tensor::TensorDialect,
+            arith::ArithDialect>();
 
         RewritePatternSet patterns(&context);
 

@@ -266,8 +266,8 @@ static std::optional<std::pair<Value, PaddingInfo>> convertStridedInsertSliceToI
     padInfo.padValue = 0;
 
     LLVM_DEBUG({
-        llvm::dbgs(
-        ) << "Converted strided insert_slice to InterleavedInsertOp with padding applied\n";
+        llvm::dbgs()
+            << "Converted strided insert_slice to InterleavedInsertOp with padding applied\n";
     });
 
     return std::make_pair(interleavedOutput, padInfo);
@@ -365,7 +365,8 @@ struct Conv2dConvert : public OpRewritePattern<LinalgConvOp> {
 
         // Todo: Capability check for depthwise conv should be moved to a helper function
         // Check for depthwise conv specific constraints
-        if (llvm::isa<linalg::DepthwiseConv2DNhwcHwcOp, linalg::DepthwiseConv2DNchwChwOp>(&convOp
+        if (llvm::isa<linalg::DepthwiseConv2DNhwcHwcOp, linalg::DepthwiseConv2DNchwChwOp>(
+                &convOp
             )) {
 
             auto strides = convOp.getStrides().template getValues<int64_t>();

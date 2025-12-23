@@ -107,8 +107,10 @@ struct TorqHwParser : public llvm::cl::parser<TorqHw> {
 
 static llvm::cl::opt<TorqHw, false, TorqHwParser> clTorqHw(
     "torq-hw", llvm::cl::init(hwTypes[0]),
-    llvm::cl::desc("Specify the target hardware (pass 'list' to list all available targets) or a "
-                   "custom target specification as " TORQ_CUSTOM_FORMAT)
+    llvm::cl::desc(
+        "Specify the target hardware (pass 'list' to list all available targets) or a "
+        "custom target specification as " TORQ_CUSTOM_FORMAT
+    )
 );
 
 static llvm::cl::opt<bool> clEnableCSSForQemu(

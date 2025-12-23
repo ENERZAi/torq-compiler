@@ -1779,8 +1779,8 @@ Operation *getElementwiseBinaryOp(linalg::GenericOp op, bool allowConstants) {
         isa<BlockArgument>(rhs) || (allowConstants && isa<arith::ConstantOp>(rhs.getDefiningOp()));
     if (!(lhsOK && rhsOK)) {
         LLVM_DEBUG({
-            llvm::dbgs(
-            ) << "elementwiseBinaryOp lhs/rhs is not block arg (or constant if allowed)\n";
+            llvm::dbgs()
+                << "elementwiseBinaryOp lhs/rhs is not block arg (or constant if allowed)\n";
         });
         return {};
     }
@@ -1843,9 +1843,9 @@ LogicalResult foldForwardDepthToSpace(
         return rewriter.notifyMatchFailure(transposeOp, "Not DepthToSpace");
     }
 
-    auto collapseOp =
-        mlir::dyn_cast<tensor::CollapseShapeOp>(*transposeOp.getResult().getUsers().begin()
-        ); // Pattern for D2S CollapseShape after transpose
+    auto collapseOp = mlir::dyn_cast<tensor::CollapseShapeOp>(
+        *transposeOp.getResult().getUsers().begin()
+    ); // Pattern for D2S CollapseShape after transpose
     if (!collapseOp) {
         return rewriter.notifyMatchFailure(transposeOp, "Not DepthToSpace");
     }

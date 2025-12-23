@@ -68,7 +68,8 @@ void registerTosaTransformPassPipeline() {
 
 void buildTorchTransformPassPipeline(OpPassManager &passManager) {
 
-    passManager.addPass(mlir::torch::Torch::createLowerToBackendContractPass(10, true, true, {}, "")
+    passManager.addPass(
+        mlir::torch::Torch::createLowerToBackendContractPass(10, true, true, {}, "")
     );
     mlir::torch::TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(passManager);
     if (!clDisableDispatchFusion) {

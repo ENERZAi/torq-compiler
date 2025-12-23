@@ -9,11 +9,11 @@
 #include "Timer.h"
 #include "TorqEventLog.h"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <atomic>
 
 #ifdef ENABLE_ASTRA_MACHINA
 #define DEF_HW_TYPE "astra_machina"
@@ -34,7 +34,7 @@ class TorqHw {
     };
 
     virtual ~TorqHw() {}
-    TorqHw(TorqEventLog* eventLog = nullptr);
+    TorqHw(TorqEventLog *eventLog = nullptr);
 
     /// open the device
     virtual bool open() = 0;
@@ -50,7 +50,10 @@ class TorqHw {
     /// start device execution
     virtual bool start(uint32_t lramAddr);
     /// wait device to complete
-    virtual bool wait(bool nssCfg = true, bool slice1Cfg = false, bool slice2Cfg = false, bool dmaInCfg = false, bool dmaOutCfg = false);
+    virtual bool wait(
+        bool nssCfg = true, bool slice1Cfg = false, bool slice2Cfg = false, bool dmaInCfg = false,
+        bool dmaOutCfg = false
+    );
     /// end for the device execution to complete
     virtual bool end();
     /// write dataIn to LRAM, only for debugging purpose
@@ -102,9 +105,12 @@ class TorqHw {
     /// Job Timer reset at each wait() call.
     Timer _wait_timer;
 
-    TorqEventLog* _eventLog = nullptr;
+    TorqEventLog *_eventLog = nullptr;
 };
 
-std::unique_ptr<TorqHw> newTorqHw(std::string hw_type, uint32_t xram_start_addr, size_t xram_size, std::string dump_dir = "", TorqEventLog* eventLog = nullptr);
+std::unique_ptr<TorqHw> newTorqHw(
+    std::string hw_type, uint32_t xram_start_addr, size_t xram_size, std::string dump_dir = "",
+    TorqEventLog *eventLog = nullptr
+);
 
 } // namespace synaptics

@@ -226,9 +226,11 @@ class FullyConnectedPattern : public OpRewritePattern<torq_hl::FullyConnectedOp>
             forallOp.getRegionIterArgs()[0], outTileOffsets, {outTileSizes}, outTileStrides,
             rewriter
         );
-        if (failed(torq_hl::encodeKernelInputOutputs(
-                outTileOp, encodingRequirements, rewriter, destXramTile
-            ))) {
+        if (failed(
+                torq_hl::encodeKernelInputOutputs(
+                    outTileOp, encodingRequirements, rewriter, destXramTile
+                )
+            )) {
             llvm::report_fatal_error("Failed to encode sliced FullyConnected operation");
         }
 
@@ -344,9 +346,11 @@ class Conv2DPattern : public OpRewritePattern<torq_hl::Conv2DOp> {
             forallOp.getRegionIterArgs()[0], outTileOffsets, {outTileSizes}, outTileStrides,
             rewriter
         );
-        if (failed(torq_hl::encodeKernelInputOutputs(
-                outTileOp, encodingRequirements, rewriter, destXramTile
-            ))) {
+        if (failed(
+                torq_hl::encodeKernelInputOutputs(
+                    outTileOp, encodingRequirements, rewriter, destXramTile
+                )
+            )) {
             llvm::report_fatal_error("Failed to encode sliced Conv2D operation");
         }
 
@@ -480,9 +484,11 @@ class DepthWise2DPattern : public OpRewritePattern<torq_hl::DepthwiseConv2DOp> {
             forallOp.getRegionIterArgs()[0], outTileOffsets, {outTileSizes}, outTileStrides,
             rewriter
         );
-        if (failed(torq_hl::encodeKernelInputOutputs(
-                outTileOp, encodingRequirements, rewriter, destXramTile
-            ))) {
+        if (failed(
+                torq_hl::encodeKernelInputOutputs(
+                    outTileOp, encodingRequirements, rewriter, destXramTile
+                )
+            )) {
             llvm::report_fatal_error("Failed to encode sliced DepthwiseConv2D operation");
         }
 

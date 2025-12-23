@@ -134,14 +134,13 @@ LogicalResult dwNHWCInput(torq_hl::DepthwiseConv2DOp op, PatternRewriter &rewrit
     // If input channels is more than 32, then the first 32 channels is processed and repeat the
     // next 32. channel_px_block controls it
     ndls.add(
-        NdlType::DEDR,
-        {
-            {DimType::L, MemDimTag::B, ddat_width, 1},
-            {DimType::L, MemDimTag::A, max_input, ddat_width},
-            {DimType::H, MemDimTag::G, ksize_x, input_strides[2] * ddat_width},
-            {DimType::H, MemDimTag::J, ksize_y, input_strides[1] * ddat_width},
-            {DimType::H, MemDimTag::A, channel_px_block, max_input * ddat_width},
-        }
+        NdlType::DEDR, {
+                           {DimType::L, MemDimTag::B, ddat_width, 1},
+                           {DimType::L, MemDimTag::A, max_input, ddat_width},
+                           {DimType::H, MemDimTag::G, ksize_x, input_strides[2] * ddat_width},
+                           {DimType::H, MemDimTag::J, ksize_y, input_strides[1] * ddat_width},
+                           {DimType::H, MemDimTag::A, channel_px_block, max_input * ddat_width},
+                       }
     );
 
     // DEWR agent reads the weights which is in IHWO format, here the input and output channels are
@@ -166,7 +165,8 @@ LogicalResult dwNHWCInput(torq_hl::DepthwiseConv2DOp op, PatternRewriter &rewrit
     };
 
     if (channel_px_block > 1) {
-        debr.push_back({DimType::H, MemDimTag::G, channel_px_block, max_input * HwInfo::breg_width}
+        debr.push_back(
+            {DimType::H, MemDimTag::G, channel_px_block, max_input * HwInfo::breg_width}
         );
     }
     ndls.add(NdlType::DEBR, debr);
@@ -287,8 +287,8 @@ LogicalResult dwNHWCInput(torq_hl::DepthwiseConv2DOp op, PatternRewriter &rewrit
     RegNdlDimsData acpw = {
         {DimType::L, RegDimTag::B, HwInfo::pram_dsize, 1},
         {DimType::L, RegDimTag::D, qdat_width, HwInfo::pram_dsize},
-        {DimType::L, RegDimTag::G, HwInfo::act_width / (qdat_width), HwInfo::pram_dsize * qdat_width
-        },
+        {DimType::L, RegDimTag::G, HwInfo::act_width / (qdat_width),
+         HwInfo::pram_dsize * qdat_width},
         {DimType::H, RegDimTag::T, channel_px_block, 1}
     };
     ndls.add(NdlType::ACPW, acpw);
@@ -303,8 +303,8 @@ LogicalResult dwNHWCInput(torq_hl::DepthwiseConv2DOp op, PatternRewriter &rewrit
     // Since the 256 values are present in a single word/block the S-tag is used to fetch the data
     RegNdlDimsData acpr = {
         {DimType::L, RegDimTag::B, HwInfo::pram_dsize, 1}, // 4bytes...1result = 8bytes
-        {DimType::L, RegDimTag::D, act_limit * qdat_width, HwInfo::pram_dsize
-        }, // 8times,4 bytes(4 values of 64 bit(32bit*2))
+        {DimType::L, RegDimTag::D, act_limit * qdat_width,
+         HwInfo::pram_dsize}, // 8times,4 bytes(4 values of 64 bit(32bit*2))
         {DimType::L, RegDimTag::G},
         {DimType::H, RegDimTag::S, (max_input / act_limit),
          HwInfo::pram_dsize * act_limit * qdat_width}, // 4 times,16bytes*qdat_width=32bytes

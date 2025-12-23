@@ -4,25 +4,25 @@
 #ifndef __TORQ_CORE_LINUX__
 #define __TORQ_CORE_LINUX__
 
-#include <linux/init.h>
-#include <linux/module.h>
+#include <linux/clk.h>
+#include <linux/compat.h>
+#include <linux/delay.h>
+#include <linux/dma-buf.h>
+#include <linux/dma-map-ops.h>
+#include <linux/dma-mapping.h>
 #include <linux/fs.h>
+#include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/iommu.h>
+#include <linux/list.h>
+#include <linux/miscdevice.h>
+#include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
-#include <linux/miscdevice.h>
-#include <linux/xarray.h>
-#include <linux/iommu.h>
-#include <linux/dma-buf.h>
-#include <linux/dma-mapping.h>
-#include <linux/dma-map-ops.h>
-#include <linux/delay.h>
-#include <linux/clk.h>
 #include <linux/reset.h>
-#include <linux/compat.h>
-#include <linux/list.h>
-#include <linux/mutex.h>
-#include <linux/interrupt.h>
+#include <linux/xarray.h>
 
 #include "torq_kernel_uapi.h"
 
@@ -33,10 +33,10 @@
 #define TORQ_IOCTL_WAIT_BITMASK_SLC_1 4
 
 struct torq_lram_segment {
-    struct list_head list;      /* List node */
-    unsigned int addr;          /* Start offset for segment */
-    unsigned int size;          /* Size of segment */
-    void *data;                 /* Segment data */
+    struct list_head list; /* List node */
+    unsigned int addr;     /* Start offset for segment */
+    unsigned int size;     /* Size of segment */
+    void *data;            /* Segment data */
 };
 
 union torq_ioctl_arg {

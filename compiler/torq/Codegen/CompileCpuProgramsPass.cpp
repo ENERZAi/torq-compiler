@@ -478,9 +478,11 @@ FailureOr<std::string> CompileCpuProgramsPass::compile(
 
     std::string objectData;
 
-    if (failed(IREE::HAL::runEmitObjFilePasses(
-            &targetMachine, llvmModule.get(), llvm::CodeGenFileType::ObjectFile, &objectData
-        ))) {
+    if (failed(
+            IREE::HAL::runEmitObjFilePasses(
+                &targetMachine, llvmModule.get(), llvm::CodeGenFileType::ObjectFile, &objectData
+            )
+        )) {
         return variantOp.emitError() << "failed to compile LLVM-IR module to an object file";
     }
 

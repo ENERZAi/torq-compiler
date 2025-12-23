@@ -9,14 +9,15 @@
 #include "TorqHw.h"
 
 #define TORQ_NODE "/dev/torq"
-#define DDR_MAP_REGION 0x6000000   /*DDR region to be mapped*/
+#define DDR_MAP_REGION 0x6000000 /*DDR region to be mapped*/
 #define MMAP_DDR_OFFSET 0x1000
 
 namespace synaptics {
 
-class TorqSoCFpga: public TorqHw {
+class TorqSoCFpga : public TorqHw {
   public:
-    TorqSoCFpga(uint32_t xramStartAddr, size_t xramSize): _xramStartAddr(xramStartAddr), _xramSize(xramSize) {}
+    TorqSoCFpga(uint32_t xramStartAddr, size_t xramSize)
+        : _xramStartAddr(xramStartAddr), _xramSize(xramSize) {}
 
     bool open() override;
     bool close() override;
@@ -42,10 +43,9 @@ class TorqSoCFpga: public TorqHw {
     bool wfi() override;
     bool cli() override;
     bool writeReg32(uint32_t addr, uint32_t data) override;
-    bool readReg32(uint32_t addr, uint32_t & data) const override;
+    bool readReg32(uint32_t addr, uint32_t &data) const override;
     bool writeLram32(uint32_t addr, uint32_t data) override;
-    bool readLram32(uint32_t addr, uint32_t & data) const override;
+    bool readLram32(uint32_t addr, uint32_t &data) const override;
 };
 
 } // namespace synaptics
-

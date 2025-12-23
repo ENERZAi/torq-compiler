@@ -5,62 +5,59 @@
 #include "torq_kernel_log.h"
 #include "torq_reg_define.h"
 
-#define REQUIRE_DEVICE_LOCK(cmd)  ((cmd == TORQ_IOCTL_START_NETWORK) || \
-               (cmd == TORQ_IOCTL_RUN_NETWORK) || \
-               (cmd == TORQ_IOCTL_WAIT_NETWORK) || \
-               (cmd == TORQ_IOCTL_STOP_NETWORK) || \
-               (cmd == TORQ_IOCTL_DESTROY_NETWORK))
+#define REQUIRE_DEVICE_LOCK(cmd)                                                                   \
+    ((cmd == TORQ_IOCTL_START_NETWORK) || (cmd == TORQ_IOCTL_RUN_NETWORK) ||                       \
+     (cmd == TORQ_IOCTL_WAIT_NETWORK) || (cmd == TORQ_IOCTL_STOP_NETWORK) ||                       \
+     (cmd == TORQ_IOCTL_DESTROY_NETWORK))
 
 #define SYNA_NPU_DEV_NAME "torq"
 #define IOVA_ALIGN 4096
 #define NPU_RESET_INTERVAL 10
 #define TORQ_IRQ_TIMEOUT_MS 5000
 
-static int torq_power_on(struct torq_module *torq_dev)
-{
+static int torq_power_on(struct torq_module *torq_dev) {
     int ret;
 
     LOG_ENTER();
     ret = clk_prepare_enable(torq_dev->core_clk);
     if (ret) {
-       KLOGE("error enabling clock");
-       return ret;
+        KLOGE("error enabling clock");
+        return ret;
     }
     return ret;
 }
 
-static int torq_power_off(struct torq_module *torq_dev)
-{
+static int torq_power_off(struct torq_module *torq_dev) {
     LOG_ENTER();
     clk_disable_unprepare(torq_dev->core_clk);
     return 0;
 }
 
-static irqreturn_t torq_synpu_irq_handler(int irq, void *ptr)
-{
+static irqreturn_t torq_synpu_irq_handler(int irq, void *ptr) {
     struct torq_module *torq_dev = (struct torq_module *)ptr;
     uint32_t status;
 
-    status = readl(torq_dev->reg_map + RA_(NSS,STATUS));
+    status = readl(torq_dev->reg_map + RA_(NSS, STATUS));
     torq_dev->interrupt_status = status;
 
     KLOGD("SYNPU IRQ: status=0x%x", status);
 
-    writel(1, torq_dev->reg_map + RA_(NSS,STATUS));
+    writel(1, torq_dev->reg_map + RA_(NSS, STATUS));
 
     complete(&torq_dev->job_completion);
 
     return IRQ_HANDLED;
 }
 
-static int torq_detach_network_domain(struct torq_module *torq_dev, struct torq_network *net)
-{
+static int torq_detach_network_domain(struct torq_module *torq_dev, struct torq_network *net) {
     int ret;
 
     /* Verify this network is the one currently attached */
     if (torq_dev->active_network != net) {
-        KLOGE("Network %d not currently active (active: %d)", net->network_id,
-              torq_dev->active_network ? torq_dev->active_network->network_id : 0);
+        KLOGE(
+            "Network %d not currently active (active: %d)", net->network_id,
+            torq_dev->active_network ? torq_dev->active_network->network_id : 0
+        );
         return -EPERM;
     }
 
@@ -68,7 +65,9 @@ static int torq_detach_network_domain(struct torq_module *torq_dev, struct torq_
     iommu_detach_device(net->domain, torq_dev->iommu_device);
     ret = iommu_attach_device(torq_dev->default_domain, torq_dev->iommu_device);
     if (ret < 0) {
-        KLOGE("Critical: Failed to revert to default domain for network %d: %d", net->network_id, ret);
+        KLOGE(
+            "Critical: Failed to revert to default domain for network %d: %d", net->network_id, ret
+        );
         /* Continue cleanup */
     }
 
@@ -78,8 +77,7 @@ static int torq_detach_network_domain(struct torq_module *torq_dev, struct torq_
     return ret;
 }
 
-static void torq_cleanup_network_resources(struct torq_module *torq_dev, struct torq_network *net)
-{
+static void torq_cleanup_network_resources(struct torq_module *torq_dev, struct torq_network *net) {
     struct torq_lram_segment *segment, *tmp;
     list_for_each_entry_safe(segment, tmp, &net->lram_segments, list) {
         list_del(&segment->list);
@@ -115,13 +113,12 @@ static void torq_cleanup_network_resources(struct torq_module *torq_dev, struct 
     }
 }
 
-static struct torq_network *torq_find_network_in_instance(struct torq_file_inst *inst, uint32_t network_id)
-{
+static struct torq_network *
+torq_find_network_in_instance(struct torq_file_inst *inst, uint32_t network_id) {
     return xa_load(&inst->networks_xa, network_id);
 }
 
-static struct torq_lram_segment *torq_find_lram_segment(struct torq_network *net, uint32_t addr)
-{
+static struct torq_lram_segment *torq_find_lram_segment(struct torq_network *net, uint32_t addr) {
     struct torq_lram_segment *segment;
 
     list_for_each_entry(segment, &net->lram_segments, list) {
@@ -132,9 +129,8 @@ static struct torq_lram_segment *torq_find_lram_segment(struct torq_network *net
     return NULL;
 }
 
-static void torq_commit_lram_to_hw(void __iomem *lram_base, uint32_t addr,
-                                   const uint8_t *data, size_t size)
-{
+static void
+torq_commit_lram_to_hw(void __iomem *lram_base, uint32_t addr, const uint8_t *data, size_t size) {
     int index = 0;
     size_t bytes_remaining = size;
     size_t memcpy_bytes;
@@ -184,29 +180,30 @@ static void torq_commit_lram_to_hw(void __iomem *lram_base, uint32_t addr,
     }
 }
 
-static void torq_commit_network_lram(struct torq_module *torq_dev, struct torq_network *net)
-{
+static void torq_commit_network_lram(struct torq_module *torq_dev, struct torq_network *net) {
     struct torq_lram_segment *segment;
     int segment_count = 0;
 
     if (!list_empty(&net->lram_segments)) {
         KLOGD("Loading LRAM segments to hardware for network %d", net->network_id);
         list_for_each_entry(segment, &net->lram_segments, list) {
-            KLOGI("Loading segment %d: %zu bytes at offset 0x%x",
-                  segment_count, segment->size, segment->addr);
+            KLOGI(
+                "Loading segment %d: %zu bytes at offset 0x%x", segment_count, segment->size,
+                segment->addr
+            );
             /* Copy segment data to hardware at the specified address */
             torq_commit_lram_to_hw(torq_dev->reg_map, segment->addr, segment->data, segment->size);
             segment_count++;
         }
 
-        KLOGD("Successfully loaded %d LRAM segments for network %d",
-              segment_count, net->network_id);
+        KLOGD(
+            "Successfully loaded %d LRAM segments for network %d", segment_count, net->network_id
+        );
     }
 }
 
-static int torq_add_lram_segment(struct torq_network *net, unsigned int addr,
-                                 size_t size, const void *data)
-{
+static int
+torq_add_lram_segment(struct torq_network *net, unsigned int addr, size_t size, const void *data) {
     struct torq_lram_segment *segment;
 
     segment = kzalloc(sizeof(*segment), GFP_KERNEL);
@@ -227,12 +224,13 @@ static int torq_add_lram_segment(struct torq_network *net, unsigned int addr,
     memcpy(segment->data, data, size);
     list_add_tail(&segment->list, &net->lram_segments);
 
-    KLOGD("Created new LRAM segment at addr 0x%x, size %zu in network:%d", addr, size, net->network_id);
+    KLOGD(
+        "Created new LRAM segment at addr 0x%x, size %zu in network:%d", addr, size, net->network_id
+    );
     return 0;
 }
 
-static int torq_create_network(struct torq_file_inst *inst, struct torq_create_network_req *req)
-{
+static int torq_create_network(struct torq_file_inst *inst, struct torq_create_network_req *req) {
     struct torq_module *torq_dev = inst->torq_device;
     struct torq_network *net;
     struct dma_buf *dmabuf;
@@ -255,8 +253,10 @@ static int torq_create_network(struct torq_file_inst *inst, struct torq_create_n
         return -EINVAL;
     }
 
-    KLOGD("(%d) Creating network with dmabuf_fd=%d, xram_start=0x%x",
-          inst->pid, req->dmabuf_fd, req->xram_start);
+    KLOGD(
+        "(%d) Creating network with dmabuf_fd=%d, xram_start=0x%x", inst->pid, req->dmabuf_fd,
+        req->xram_start
+    );
 
     dmabuf = dma_buf_get(req->dmabuf_fd);
     if (IS_ERR(dmabuf)) {
@@ -304,8 +304,7 @@ static int torq_create_network(struct torq_file_inst *inst, struct torq_create_n
     return 0;
 }
 
-static int torq_start_network(struct torq_file_inst *inst, struct torq_start_network_req *req)
-{
+static int torq_start_network(struct torq_file_inst *inst, struct torq_start_network_req *req) {
     struct torq_module *torq_dev = inst->torq_device;
     struct torq_network *net;
     struct dma_buf_attachment *attachment;
@@ -323,16 +322,17 @@ static int torq_start_network(struct torq_file_inst *inst, struct torq_start_net
         return -ENOENT;
     }
 
-    KLOGD("Starting network:%d (pid:%d)",req->network_id, inst->pid);
+    KLOGD("Starting network:%d (pid:%d)", req->network_id, inst->pid);
 
     if (torq_dev->active_network) {
-        KLOGE("Hardware busy with network %d",
-              torq_dev->active_network->network_id);
+        KLOGE("Hardware busy with network %d", torq_dev->active_network->network_id);
         return -EBUSY; /* application can retry on EBUSY return */
     }
 
     if (!net->attachment) {
-        KLOGD("mapping network (%d:%d) xram space to device dma domain", inst->pid, req->network_id);
+        KLOGD(
+            "mapping network (%d:%d) xram space to device dma domain", inst->pid, req->network_id
+        );
         attachment = dma_buf_attach(net->dmabuf, torq_dev->iommu_device);
         if (IS_ERR(attachment)) {
             KLOGE("Failed to attach DMA buffer: %ld", PTR_ERR(attachment));
@@ -362,8 +362,10 @@ static int torq_start_network(struct torq_file_inst *inst, struct torq_start_net
     if (!net->iova_mapped) {
         /* Map DMA buffer to the network's IOMMU domain */
         KLOGD("Mapping DMA buffer to network's domain at 0x%x", net->network_id, net->xram_start);
-        ret = iommu_map_sg(net->domain, net->xram_start, net->sgt->sgl,
-                           net->sgt->orig_nents, IOMMU_READ | IOMMU_WRITE, GFP_KERNEL);
+        ret = iommu_map_sg(
+            net->domain, net->xram_start, net->sgt->sgl, net->sgt->orig_nents,
+            IOMMU_READ | IOMMU_WRITE, GFP_KERNEL
+        );
         if (ret < 0) {
             KLOGE("Failed to map SG table to network IOMMU domain: %d", ret);
             iommu_detach_device(net->domain, torq_dev->iommu_device);
@@ -387,8 +389,7 @@ static int torq_start_network(struct torq_file_inst *inst, struct torq_start_net
     return 0;
 }
 
-static int torq_run_network(struct torq_file_inst *inst, struct torq_run_network_req *req)
-{
+static int torq_run_network(struct torq_file_inst *inst, struct torq_run_network_req *req) {
     struct torq_module *torq_dev = inst->torq_device;
     struct torq_network *net;
 
@@ -412,24 +413,25 @@ static int torq_run_network(struct torq_file_inst *inst, struct torq_run_network
 
     reinit_completion(&torq_dev->job_completion);
 
-    writel(RF_LSH(NSS, CFG_LINK_EN, 1) | RF_BMSK_LSH(NSS, CFG_DESC, req->code_entry),
-           torq_dev->reg_map + RA_(NSS,CFG));
+    writel(
+        RF_LSH(NSS, CFG_LINK_EN, 1) | RF_BMSK_LSH(NSS, CFG_DESC, req->code_entry),
+        torq_dev->reg_map + RA_(NSS, CFG)
+    );
 
-    writel(RF_LSH(NSS, CTRL_IEN_NSS, 1), torq_dev->reg_map + RA_(NSS,CTRL));
+    writel(RF_LSH(NSS, CTRL_IEN_NSS, 1), torq_dev->reg_map + RA_(NSS, CTRL));
 
-    writel(RF_LSH(CSS, IEN_HST_NSS, 1), torq_dev->reg_map + RA_(CSS,IEN_HST));
+    writel(RF_LSH(CSS, IEN_HST_NSS, 1), torq_dev->reg_map + RA_(CSS, IEN_HST));
 
     wmb();
 
-    writel(RF_LSH(NSS, START_NSS, 1), torq_dev->reg_map + RA_(NSS,START));
+    writel(RF_LSH(NSS, START_NSS, 1), torq_dev->reg_map + RA_(NSS, START));
 
     wmb();
 
     return 0;
 }
 
-static int torq_wait_network(struct torq_file_inst *inst, struct torq_wait_network_req *req)
-{
+static int torq_wait_network(struct torq_file_inst *inst, struct torq_wait_network_req *req) {
     struct torq_module *torq_dev = inst->torq_device;
     struct torq_network *net;
     uint32_t reg_val;
@@ -452,10 +454,14 @@ static int torq_wait_network(struct torq_file_inst *inst, struct torq_wait_netwo
         return -ENODEV;
     }
 
-    KLOGD("Waiting for job completion on network %d with wait_bits=0x%x", req->network_id, req->wait_bits);
+    KLOGD(
+        "Waiting for job completion on network %d with wait_bits=0x%x", req->network_id,
+        req->wait_bits
+    );
 
-    ret = wait_for_completion_timeout(&torq_dev->job_completion,
-                                      msecs_to_jiffies(TORQ_IRQ_TIMEOUT_MS));
+    ret = wait_for_completion_timeout(
+        &torq_dev->job_completion, msecs_to_jiffies(TORQ_IRQ_TIMEOUT_MS)
+    );
 
     if (ret == 0) {
         KLOGE("Job timeout on network %d after %d ms", req->network_id, TORQ_IRQ_TIMEOUT_MS);
@@ -484,16 +490,18 @@ static int torq_wait_network(struct torq_file_inst *inst, struct torq_wait_netwo
     }
 
     if (!job_complete) {
-        KLOGE("Interrupt triggered, but all expected bits not set..network: %d, status: 0x%x, wait_bits: 0x%x", 
-              req->network_id, reg_val, req->wait_bits);
+        KLOGE(
+            "Interrupt triggered, but all expected bits not set..network: %d, status: 0x%x, "
+            "wait_bits: 0x%x",
+            req->network_id, reg_val, req->wait_bits
+        );
         return -EIO;
     }
 
     return 0;
 }
 
-static int torq_stop_network(struct torq_file_inst *inst, struct torq_stop_network_req *req)
-{
+static int torq_stop_network(struct torq_file_inst *inst, struct torq_stop_network_req *req) {
     struct torq_module *torq_dev = inst->torq_device;
     struct torq_network *net;
     int ret;
@@ -515,8 +523,7 @@ static int torq_stop_network(struct torq_file_inst *inst, struct torq_stop_netwo
     return ret;
 }
 
-static int torq_destroy_network(struct torq_file_inst *inst, struct torq_destroy_network_req *req)
-{
+static int torq_destroy_network(struct torq_file_inst *inst, struct torq_destroy_network_req *req) {
     struct torq_module *torq_dev = inst->torq_device;
     struct torq_network *net;
 
@@ -547,9 +554,7 @@ static int torq_destroy_network(struct torq_file_inst *inst, struct torq_destroy
     return 0;
 }
 
-
-static int torq_write_lram(struct torq_file_inst *inst, struct torq_write_lram_req *req)
-{
+static int torq_write_lram(struct torq_file_inst *inst, struct torq_write_lram_req *req) {
     struct torq_module *torq_dev = inst->torq_device;
     struct torq_network *net;
     void *lram_data;
@@ -592,8 +597,7 @@ static int torq_write_lram(struct torq_file_inst *inst, struct torq_write_lram_r
     return ret;
 }
 
-static int torq_read_lram(struct torq_file_inst *inst, struct torq_read_lram_req *req)
-{
+static int torq_read_lram(struct torq_file_inst *inst, struct torq_read_lram_req *req) {
     struct torq_network *net;
     struct torq_lram_segment *segment;
     size_t copy_size;
@@ -624,8 +628,7 @@ static int torq_read_lram(struct torq_file_inst *inst, struct torq_read_lram_req
     return 0;
 }
 
-static long torq_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
-{
+static long torq_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
     unsigned int dir;
     union torq_ioctl_arg data;
     struct torq_file_inst *inst = filp->private_data;
@@ -652,61 +655,65 @@ static long torq_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
     switch (cmd) {
 
-        case TORQ_IOCTL_CREATE_NETWORK:
-            KLOGD("torq_ioctl create network:(pid:%d)", inst->pid);
-            ret = torq_create_network(inst, &data.create_network_request);
-            if (ret)
-                break;
+    case TORQ_IOCTL_CREATE_NETWORK:
+        KLOGD("torq_ioctl create network:(pid:%d)", inst->pid);
+        ret = torq_create_network(inst, &data.create_network_request);
+        if (ret)
+            break;
 
-            if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd))) {
-                struct torq_network *net = xa_erase(&inst->networks_xa, data.create_network_request.network_id);
-                if (net) {
-                    iommu_domain_free(net->domain);
-                    dma_buf_put(net->dmabuf);
-                    kfree(net);
-                }
-                KLOGE("error copying network details back to user");
-                ret = -EFAULT;
+        if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd))) {
+            struct torq_network *net =
+                xa_erase(&inst->networks_xa, data.create_network_request.network_id);
+            if (net) {
+                iommu_domain_free(net->domain);
+                dma_buf_put(net->dmabuf);
+                kfree(net);
             }
+            KLOGE("error copying network details back to user");
+            ret = -EFAULT;
+        }
         break;
 
-        case TORQ_IOCTL_START_NETWORK:
-            ret = torq_start_network(inst, &data.start_network_request);
+    case TORQ_IOCTL_START_NETWORK:
+        ret = torq_start_network(inst, &data.start_network_request);
         break;
 
-        case TORQ_IOCTL_RUN_NETWORK:
-            KLOGD("torq_ioctl run network:(pid:%d)", inst->pid);
-            ret = torq_run_network(inst, &data.run_network_request);
+    case TORQ_IOCTL_RUN_NETWORK:
+        KLOGD("torq_ioctl run network:(pid:%d)", inst->pid);
+        ret = torq_run_network(inst, &data.run_network_request);
         break;
 
-        case TORQ_IOCTL_WAIT_NETWORK:
-            KLOGD("torq_ioctl wait network:(pid:%d)", inst->pid);
-            ret = torq_wait_network(inst, &data.wait_network_request);
+    case TORQ_IOCTL_WAIT_NETWORK:
+        KLOGD("torq_ioctl wait network:(pid:%d)", inst->pid);
+        ret = torq_wait_network(inst, &data.wait_network_request);
         break;
 
-        case TORQ_IOCTL_STOP_NETWORK:
-            KLOGD("torq_ioctl stop network:(pid:%d)", inst->pid);
-            ret = torq_stop_network(inst, &data.stop_network_request);
+    case TORQ_IOCTL_STOP_NETWORK:
+        KLOGD("torq_ioctl stop network:(pid:%d)", inst->pid);
+        ret = torq_stop_network(inst, &data.stop_network_request);
         break;
 
-        case TORQ_IOCTL_DESTROY_NETWORK:
-            KLOGD("torq_ioctl destroy network:(pid:%d)", inst->pid);
-            ret = torq_destroy_network(inst, &data.destroy_network_request);
+    case TORQ_IOCTL_DESTROY_NETWORK:
+        KLOGD("torq_ioctl destroy network:(pid:%d)", inst->pid);
+        ret = torq_destroy_network(inst, &data.destroy_network_request);
         break;
 
-        case TORQ_IOCTL_WRITE_LRAM:
-            KLOGD("torq_ioctl write lram:%d 0x%x:0x%x", inst->pid, TORQ_IOCTL_WRITE_LRAM, TORQ_IOCTL_WRITE_LRAM_32);
-            ret = torq_write_lram(inst, &data.lram_write_request);
+    case TORQ_IOCTL_WRITE_LRAM:
+        KLOGD(
+            "torq_ioctl write lram:%d 0x%x:0x%x", inst->pid, TORQ_IOCTL_WRITE_LRAM,
+            TORQ_IOCTL_WRITE_LRAM_32
+        );
+        ret = torq_write_lram(inst, &data.lram_write_request);
         break;
 
-        case TORQ_IOCTL_READ_LRAM:
-            KLOGD("torq_ioctl read lram:%d", inst->pid);
-            ret = torq_read_lram(inst, &data.lram_read_request);
+    case TORQ_IOCTL_READ_LRAM:
+        KLOGD("torq_ioctl read lram:%d", inst->pid);
+        ret = torq_read_lram(inst, &data.lram_read_request);
         break;
 
-        default:
-            KLOGE("unknown ioctl cmd::0x%x", cmd);
-            ret = -EINVAL;
+    default:
+        KLOGE("unknown ioctl cmd::0x%x", cmd);
+        ret = -EINVAL;
     }
 
     if (REQUIRE_DEVICE_LOCK(cmd)) {
@@ -716,8 +723,7 @@ static long torq_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
     return ret;
 }
 
-static long torq_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
-{
+static long torq_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
     struct torq_file_inst *inst = filp->private_data;
     struct torq_write_lram_req lram_write_64;
     struct torq_write_lram_req_32compat lram_write_32;
@@ -726,43 +732,42 @@ static long torq_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long
     int ret = 0;
 
     switch (cmd) {
-        case TORQ_IOCTL_WRITE_LRAM_32:
-            if (copy_from_user(&lram_write_32, (void __user *)arg, _IOC_SIZE(cmd))) {
-                KLOGE("error copying lram data from user\n");
-                return -EFAULT;
-            }
-            lram_write_64.network_id = lram_write_32.network_id;
-            lram_write_64.addr = lram_write_32.addr;
-            lram_write_64.size = lram_write_32.size;
-            lram_write_64.data = compat_ptr(lram_write_32.data);
-            mutex_lock(&inst->inst_mutex);
-            ret = torq_write_lram(inst, &lram_write_64);
-            mutex_unlock(&inst->inst_mutex);
+    case TORQ_IOCTL_WRITE_LRAM_32:
+        if (copy_from_user(&lram_write_32, (void __user *)arg, _IOC_SIZE(cmd))) {
+            KLOGE("error copying lram data from user\n");
+            return -EFAULT;
+        }
+        lram_write_64.network_id = lram_write_32.network_id;
+        lram_write_64.addr = lram_write_32.addr;
+        lram_write_64.size = lram_write_32.size;
+        lram_write_64.data = compat_ptr(lram_write_32.data);
+        mutex_lock(&inst->inst_mutex);
+        ret = torq_write_lram(inst, &lram_write_64);
+        mutex_unlock(&inst->inst_mutex);
         break;
 
-        case TORQ_IOCTL_READ_LRAM_32:
-            if (copy_from_user(&lram_read_32, (void __user *)arg, _IOC_SIZE(cmd))) {
-                KLOGE("error copying lram data from user\n");
-                return -EFAULT;
-            }
-            lram_read_64.network_id = lram_read_32.network_id;
-            lram_read_64.addr = lram_read_32.addr;
-            lram_read_64.size = lram_read_32.size;
-            lram_read_64.data = compat_ptr(lram_read_32.data);
-            mutex_lock(&inst->inst_mutex);
-            ret = torq_read_lram(inst, &lram_read_64);
-            mutex_unlock(&inst->inst_mutex);
+    case TORQ_IOCTL_READ_LRAM_32:
+        if (copy_from_user(&lram_read_32, (void __user *)arg, _IOC_SIZE(cmd))) {
+            KLOGE("error copying lram data from user\n");
+            return -EFAULT;
+        }
+        lram_read_64.network_id = lram_read_32.network_id;
+        lram_read_64.addr = lram_read_32.addr;
+        lram_read_64.size = lram_read_32.size;
+        lram_read_64.data = compat_ptr(lram_read_32.data);
+        mutex_lock(&inst->inst_mutex);
+        ret = torq_read_lram(inst, &lram_read_64);
+        mutex_unlock(&inst->inst_mutex);
         break;
 
-        default:
-            ret = torq_ioctl(filp, cmd, arg);
+    default:
+        ret = torq_ioctl(filp, cmd, arg);
     }
 
     return ret;
 }
 
-static int torq_open(struct inode *inode, struct file *filp)
-{
+static int torq_open(struct inode *inode, struct file *filp) {
     struct torq_module *torq_dev;
     struct torq_file_inst *inst = NULL;
 
@@ -796,8 +801,7 @@ static int torq_open(struct inode *inode, struct file *filp)
     return 0;
 }
 
-static int torq_release(struct inode *inode, struct file *file)
-{
+static int torq_release(struct inode *inode, struct file *file) {
     struct torq_file_inst *inst = file->private_data;
     struct torq_module *torq_dev = inst->torq_device;
 
@@ -845,8 +849,7 @@ static const struct file_operations torq_fops = {
     .compat_ioctl = torq_compat_ioctl,
 };
 
-static void torq_remove(struct platform_device *pdev)
-{
+static void torq_remove(struct platform_device *pdev) {
     struct torq_module *torq_dev = platform_get_drvdata(pdev);
     LOG_ENTER();
 
@@ -861,8 +864,7 @@ static void torq_remove(struct platform_device *pdev)
     platform_set_drvdata(pdev, NULL);
 }
 
-static int torq_probe(struct platform_device *pdev)
-{
+static int torq_probe(struct platform_device *pdev) {
     struct torq_module *torq_dev;
     struct resource *res;
     int ret;
@@ -919,11 +921,12 @@ static int torq_probe(struct platform_device *pdev)
     torq_dev->job_irq = platform_get_irq_byname(pdev, "job");
     if (torq_dev->job_irq < 0) {
         KLOGE("Failed to get SYNPU IRQ: %d", torq_dev->job_irq);
-	return torq_dev->job_irq;
+        return torq_dev->job_irq;
     }
 
-    ret = devm_request_irq(&pdev->dev, torq_dev->job_irq, torq_synpu_irq_handler,
-                           IRQF_SHARED, "torq-npu-irq", torq_dev);
+    ret = devm_request_irq(
+        &pdev->dev, torq_dev->job_irq, torq_synpu_irq_handler, IRQF_SHARED, "torq-npu-irq", torq_dev
+    );
     if (ret) {
         KLOGE("Failed to request TORQ IRQ %d: %d", torq_dev->job_irq, ret);
         return ret;
@@ -948,7 +951,9 @@ static int torq_probe(struct platform_device *pdev)
 }
 
 static const struct of_device_id torq_of_match[] = {
-    { .compatible = "syna,npu", },
+    {
+        .compatible = "syna,npu",
+    },
     {},
 };
 

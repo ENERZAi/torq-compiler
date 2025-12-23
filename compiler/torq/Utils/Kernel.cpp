@@ -309,8 +309,7 @@ static void ndlToStr(NdlType type, const torq_hw::MemNdlData *ndl) {
     }
 
     LLVM_DEBUG(
-        llvm::dbgs() << type << ": "; for (auto &dim
-                                           : ndl->dims) {
+        llvm::dbgs() << type << ": "; for (auto &dim : ndl->dims) {
             llvm::dbgs() << dim.tag << "(" << dim.type << ")" << dim.count << "[";
             if (dim.getExprStride().has_value()) {
                 llvm::dbgs() << "expr] ";
@@ -331,8 +330,7 @@ static void ndlToStr(NdlType type, const torq_hw::RegNdlData *ndl) {
         return;
     }
 
-    LLVM_DEBUG(llvm::dbgs() << type << ": "; for (auto &dim
-                                                  : ndl->dims) {
+    LLVM_DEBUG(llvm::dbgs() << type << ": "; for (auto &dim : ndl->dims) {
         llvm::dbgs() << dim.tag << "(" << dim.type << ")" << dim.count << "[" << dim.stride << "] ";
     } llvm::dbgs() << "\n";);
 }
@@ -948,7 +946,8 @@ int SlicePrivate::addMemNdlDims(
         assert(!iv || !iv->modulo() && "Iteration with modulo not allowed here");
         if (stride.exprVal.has_value()) {
             assert((!iv || !iv->isReverse()) && "Reverse iteration not allowed with expr");
-            ndlDims.push_back({DimType::H, _forStack[i].tag, loopIterCount, stride.exprVal.value()}
+            ndlDims.push_back(
+                {DimType::H, _forStack[i].tag, loopIterCount, stride.exprVal.value()}
             );
         }
         else {
@@ -2331,7 +2330,8 @@ static void vectorize(LData &data, int vectorSize, int vectorStride) {
     // take into account padding).
     int vectCount = div_ceil(itemCount, vectorStride);
     shape.push_back(ShapeItem{vectCount, vectorStride, ShapeItem::Tag::Main});
-    shape.push_back(ShapeItem{vectCount > 1 || vectorSize != vectorStride ? vectorSize : itemCount}
+    shape.push_back(
+        ShapeItem{vectCount > 1 || vectorSize != vectorStride ? vectorSize : itemCount}
     );
 
     // Set the stride of the previous dim (if any) if it doesn't have a stride yet

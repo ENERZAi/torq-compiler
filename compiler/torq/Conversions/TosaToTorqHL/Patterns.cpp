@@ -260,7 +260,8 @@ static LogicalResult fuseWithRescaleOp(
         mlir::cast<RankedTensorType>(weights.getType()).getShape();
     llvm::SmallVector<int64_t> weightShape(weightShapeArr.begin(), weightShapeArr.end());
 
-    if (failed(reverseTConvWeights(rescaleOp, weights, weightShape, rewriter)
+    if (failed(
+            reverseTConvWeights(rescaleOp, weights, weightShape, rewriter)
         )) /*Rearrange the weights in SpaceToDepth style modification and reverse the weights*/ {
         return rewriter.notifyMatchFailure(rescaleOp, "TConv reverse failed");
     }

@@ -147,8 +147,8 @@ LogicalResult ReducePattern::transform(torq_hl::ReduceOp op, PatternRewriter &re
 
     MemNdlDimsData deqw = {
         {DimType::L, MemDimTag::B, data_bytes, 1},
-        {DimType::L, MemDimTag::A, HwInfo::act_width / output_elements_per_cycle_divisor, data_bytes
-        },
+        {DimType::L, MemDimTag::A, HwInfo::act_width / output_elements_per_cycle_divisor,
+         data_bytes},
         {DimType::H, MemDimTag::A,
          (HwInfo::max_input * output_elements_per_cycle_divisor) / HwInfo::act_width,
          (16 / output_elements_per_cycle_divisor) * data_bytes},

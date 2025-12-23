@@ -225,8 +225,10 @@ struct LinalgOpTilingInterface
         // (filling in full extent for dimensions not used to access the result).
         AffineMap indexingMap = linalgOp.getIndexingMapMatchingResult(op->getResult(resultNumber));
         if (!indexingMap.isProjectedPermutation()) {
-            return op->emitOpError("unhandled tiled implementation generation when result is not "
-                                   "accessed using a permuted projection");
+            return op->emitOpError(
+                "unhandled tiled implementation generation when result is not "
+                "accessed using a permuted projection"
+            );
         }
 
         getMappedOffsetAndSize(

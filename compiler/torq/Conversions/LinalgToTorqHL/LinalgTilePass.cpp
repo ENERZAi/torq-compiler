@@ -230,9 +230,9 @@ static FailureOr<SmallVector<int64_t>> findValidParallelTile(linalg::LinalgOp sr
 
         if (!found) {
             LLVM_DEBUG({
-                llvm::dbgs(
-                ) << "Failed to find a valid tile for op (cannot make a tile small enough): "
-                  << srcOp << "\n";
+                llvm::dbgs()
+                    << "Failed to find a valid tile for op (cannot make a tile small enough): "
+                    << srcOp << "\n";
             });
             return failure();
         }
@@ -273,9 +273,9 @@ static LogicalResult tileMatMulForSlices(
     // matmul op will automatically inserts linalg.fill op before it for output init
     // we need to tile this linalg.fill together with matmul op in case unmatched
     // tile sizes for linalg.fill and matmul op
-    auto options =
-        scf::SCFTileAndFuseOptions().setTilingOptions(scf::SCFTilingOptions().setTileSizes(tileSizes
-        ));
+    auto options = scf::SCFTileAndFuseOptions().setTilingOptions(
+        scf::SCFTilingOptions().setTileSizes(tileSizes)
+    );
 
     // Avoid fusing img2col operations as we want to run them on the host in one go
     auto fusionControlFn = [](tensor::ExtractSliceOp, OpResult op, bool) {

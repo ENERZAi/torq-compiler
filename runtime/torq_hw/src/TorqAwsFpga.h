@@ -10,9 +10,9 @@
 
 namespace synaptics {
 
-class TorqAwsFpga: public TorqHw {
+class TorqAwsFpga : public TorqHw {
   public:
-    TorqAwsFpga(uint32_t xramStartAddr, size_t xramSize, TorqEventLog* eventLog = nullptr)
+    TorqAwsFpga(uint32_t xramStartAddr, size_t xramSize, TorqEventLog *eventLog = nullptr)
         : TorqHw(eventLog), _xramStartAddr(xramStartAddr), _xramSize(xramSize) {}
 
     bool open() override;
@@ -39,10 +39,9 @@ class TorqAwsFpga: public TorqHw {
     bool wfi() override;
     bool cli() override;
     bool writeReg32(uint32_t addr, uint32_t data) override;
-    bool readReg32(uint32_t addr, uint32_t & data) const override;
+    bool readReg32(uint32_t addr, uint32_t &data) const override;
     bool writeLram32(uint32_t addr, uint32_t data) override;
-    bool readLram32(uint32_t addr, uint32_t & data) const override;
+    bool readLram32(uint32_t addr, uint32_t &data) const override;
 };
 
 } // namespace synaptics
-
