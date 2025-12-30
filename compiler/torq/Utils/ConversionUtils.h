@@ -60,20 +60,20 @@ inline bool isF64(const llvm::APFloat &x) {
 
 template <typename T> Type getMLIRFloatType(MLIRContext *context, const T &value) {
     if constexpr (std::is_same_v<T, float>) {
-        return FloatType::getF32(context); // Map C++ float to MLIR f32
+        return Float32Type::get(context); // Map C++ float to MLIR f32
     }
     else if constexpr (std::is_same_v<T, double>) {
-        return FloatType::getF64(context); // Map C++ double to MLIR f64
+        return Float64Type::get(context); // Map C++ double to MLIR f64
     }
     else if constexpr (std::is_same_v<T, APFloat>) { // Map APFloat to MLIR floattype
         if (isBF16(value))
-            return FloatType::getBF16(context);
+            return BFloat16Type::get(context);
         else if (isF16(value))
-            return FloatType::getF16(context);
+            return Float16Type::get(context);
         else if (isF32(value))
-            return FloatType::getF32(context);
+            return Float32Type::get(context);
         else if (isF64(value))
-            return FloatType::getF64(context);
+            return Float64Type::get(context);
         else
             assert(false && "Unsupported APFloat type for MLIR type conversion");
     }
@@ -83,10 +83,10 @@ template <typename T> Type getMLIRFloatType(MLIRContext *context, const T &value
 // Get the MLIR type corresponding to a C++ type
 template <typename T> Type getMLIRType(MLIRContext *context) {
     if constexpr (std::is_same_v<T, float>) {
-        return FloatType::getF32(context); // Map C++ float to MLIR f32
+        return Float32Type::get(context); // Map C++ float to MLIR f32
     }
     else if constexpr (std::is_same_v<T, double>) {
-        return FloatType::getF64(context); // Map C++ double to MLIR f64
+        return Float64Type::get(context); // Map C++ double to MLIR f64
     }
     else if constexpr (std::is_same_v<T, int8_t>) {
         return IntegerType::get(context, 8); // Map C++ int8_t to MLIR i8
