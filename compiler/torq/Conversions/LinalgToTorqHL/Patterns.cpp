@@ -2245,9 +2245,6 @@ struct GenericToBroadcastOpConversion : public OpRewritePattern<linalg::GenericO
     LogicalResult
     matchAndRewrite(linalg::GenericOp genericOp, PatternRewriter &rewriter) const override {
 
-        // FIXME: Copied from
-        // https://github.com/llvm/llvm-project/blob/main/mlir/lib/Dialect/Linalg/IR/LinalgInterfaces.cpp#L141.
-        // Remove after upgrading to latest MLIR.
         std::optional<SmallVector<int64_t>> equivalentToBroadcast =
             isaBroadcastOpInterface(genericOp);
         if (!equivalentToBroadcast) {

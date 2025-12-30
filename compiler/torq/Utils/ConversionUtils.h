@@ -506,6 +506,5 @@ Value convertScalarToRankedTensor(Value &input, Location loc, PatternRewriter &r
 
 bool hasEkLoweringConv(mlir::syna::torq_hl::Conv2DOp op);
 bool hasEkLoweringConv(mlir::syna::torq_hl::DepthwiseConv2DOp op);
-std::optional<SmallVector<int64_t>> isaBroadcastOpInterface(linalg::GenericOp genericOp);
 
 } // namespace mlir::syna::torq
