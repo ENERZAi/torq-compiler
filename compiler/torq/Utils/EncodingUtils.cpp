@@ -144,7 +144,7 @@ SmallVector<int64_t> getEncodedStridesElements(ShapedType type) {
         else if (!memRefType.getLayout().isIdentity()) {
 
             // FIXME: all this is very ugly, we should revisit the whole encoding system
-            auto [memRefStrides, memRefOffset] = getStridesAndOffset(memRefType);
+            auto [memRefStrides, memRefOffset] = memRefType.getStridesAndOffset();
 
             auto encoding = getEncoding(type);
 
@@ -248,7 +248,7 @@ int64_t getEncodedTotalSizeElements(ShapedType type) {
 
             SmallVector<int64_t> strides;
             int64_t offset;
-            auto ret = getStridesAndOffset(memrefType, strides, offset);
+            auto ret = memrefType.getStridesAndOffset(strides, offset);
 
             if (failed(ret)) {
                 llvm::report_fatal_error("Failed to get memref strides and offset");
