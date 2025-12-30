@@ -1,5 +1,5 @@
 [submodule "third_party/iree"]
 	path = third_party/iree
-	url = ../iree.git
+	url = https://github.com/synaptics-torq/iree.git
 	branch = torq-old
 	
