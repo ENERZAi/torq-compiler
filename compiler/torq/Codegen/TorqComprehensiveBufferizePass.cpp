@@ -13,7 +13,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "iree/compiler/Codegen/Common/PassDetail.h"
 #include "iree/compiler/Codegen/Common/Passes.h"
 #include "iree/compiler/Codegen/Interfaces/BufferizationInterfaces.h"
 #include "iree/compiler/Dialect/Flow/IR/FlowDialect.h"
@@ -48,10 +47,16 @@ using mlir::bufferization::OneShotBufferizationOptions;
 
 using namespace mlir::iree_compiler;
 
+#define GEN_PASS_DEF_ELIMINATEEMPTYTENSORSPASS
+#define GEN_PASS_DEF_IREEBUFFERIZECONSTANTSPASS
+#define GEN_PASS_DEF_IREECOMPREHENSIVEBUFFERIZEPASS
+#include "iree/compiler/Codegen/Common/Passes.h.inc"
+
 namespace mlir::syna::torq {
 
 namespace {
-class EliminateEmptyTensorsPass : public EliminateEmptyTensorsBase<EliminateEmptyTensorsPass> {
+class EliminateEmptyTensorsPass
+    : public impl::EliminateEmptyTensorsPassBase<EliminateEmptyTensorsPass> {
   public:
     void getDependentDialects(DialectRegistry &registry) const override {
         registry.insert<IREE::Flow::FlowDialect, tensor::TensorDialect>();
@@ -62,7 +67,7 @@ class EliminateEmptyTensorsPass : public EliminateEmptyTensorsBase<EliminateEmpt
 
 /// Pass to convert from tensor based ops to memref based ops.
 class IREEComprehensiveBufferizePass
-    : public IREEComprehensiveBufferizeBase<IREEComprehensiveBufferizePass> {
+    : public impl::IREEComprehensiveBufferizePassBase<IREEComprehensiveBufferizePass> {
   public:
     explicit IREEComprehensiveBufferizePass(
         std::optional<BufferizationOptions::AllocationFn> allocationFn = std::nullopt,
