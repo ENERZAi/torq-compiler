@@ -36,7 +36,7 @@ namespace {
 template <typename OpT>
 static LogicalResult bufferizeOp(
     Operation *op, RewriterBase &rewriter, const bufferization::BufferizationOptions &options,
-    TypeRange resultTypes = {}
+    bufferization::BufferizationState &state, TypeRange resultTypes = {}
 ) {
 
     if (!bufferization::hasTensorSemantics(op)) {
@@ -51,7 +51,7 @@ static LogicalResult bufferizeOp(
     for (auto &operand : op->getOpOperands()) {
 
         if (isa<TensorType>(operand.get().getType())) {
-            FailureOr<Value> maybeBuffer = getBuffer(rewriter, operand.get(), options);
+            FailureOr<Value> maybeBuffer = getBuffer(rewriter, operand.get(), options, state);
 
             if (failed(maybeBuffer)) {
                 return op->emitError("unable to bufferize input operand");
@@ -104,10 +104,11 @@ struct TorqHLBufferizableOpInterface
     }
 
     LogicalResult bufferize(
-        Operation *op, RewriterBase &rewriter, const bufferization::BufferizationOptions &options
+        Operation *op, RewriterBase &rewriter, const bufferization::BufferizationOptions &options,
+        bufferization::BufferizationState &state
     ) const {
 
-        return bufferizeOp<OpT>(op, rewriter, options);
+        return bufferizeOp<OpT>(op, rewriter, options, state);
     }
 };
 
@@ -117,8 +118,10 @@ struct ImportProgramOpBufferizableOpInterface
 
     bool bufferizesToAllocation(Operation *op, Value value) const { return true; }
 
-    LogicalResult
-    bufferize(Operation *op, RewriterBase &rewriter, const BufferizationOptions &options) const {
+    LogicalResult bufferize(
+        Operation *op, RewriterBase &rewriter, const BufferizationOptions &options,
+        bufferization::BufferizationState &state
+    ) const {
         auto programOp = cast<torq_hl::ImportProgramOp>(op);
 
         auto tensorType = cast<RankedTensorType>(programOp.getType());
@@ -128,7 +131,9 @@ struct ImportProgramOpBufferizableOpInterface
             op->getLoc(), memrefType, programOp.getName()
         );
 
-        rewriter.replaceOpWithNewOp<bufferization::ToTensorOp>(op, newProgramOp.getResult());
+        rewriter.replaceOpWithNewOp<bufferization::ToTensorOp>(
+            op, tensorType, newProgramOp.getResult()
+        );
 
         return success();
     }
@@ -138,9 +143,11 @@ struct CallProgramOpBufferizableOpInterface
     : public bufferization::DstBufferizableOpInterfaceExternalModel<
           CallProgramOpBufferizableOpInterface, torq_hl::CallProgramOp> {
 
-    LogicalResult
-    bufferize(Operation *op, RewriterBase &rewriter, const BufferizationOptions &options) const {
-        return bufferizeOp<torq_hl::CallProgramOp>(op, rewriter, options);
+    LogicalResult bufferize(
+        Operation *op, RewriterBase &rewriter, const BufferizationOptions &options,
+        bufferization::BufferizationState &state
+    ) const {
+        return bufferizeOp<torq_hl::CallProgramOp>(op, rewriter, options, state);
     }
 };
 
@@ -155,20 +162,24 @@ struct ConvertOpBufferizableOpInterface
                cast<torq_hl::ConvertOp>(op).getInputMutable().getOperandNumber();
     }
 
-    LogicalResult
-    bufferize(Operation *op, RewriterBase &rewriter, const BufferizationOptions &options) const {
+    LogicalResult bufferize(
+        Operation *op, RewriterBase &rewriter, const BufferizationOptions &options,
+        bufferization::BufferizationState &state
+    ) const {
 
         OpBuilder::InsertionGuard g(rewriter);
 
         torq_hl::ConvertOp convertOp = cast<torq_hl::ConvertOp>(op);
 
-        FailureOr<Value> maybeInputBuffer = getBuffer(rewriter, convertOp.getInput(), options);
+        FailureOr<Value> maybeInputBuffer =
+            getBuffer(rewriter, convertOp.getInput(), options, state);
 
         if (failed(maybeInputBuffer)) {
             return op->emitError("unable to bufferize result operand");
         }
 
-        FailureOr<Value> maybeOutputBuffer = getBuffer(rewriter, convertOp.getInit(), options);
+        FailureOr<Value> maybeOutputBuffer =
+            getBuffer(rewriter, convertOp.getInit(), options, state);
 
         if (failed(maybeOutputBuffer)) {
             return op->emitError("unable to bufferize result operand");
