@@ -189,9 +189,7 @@ class ElementwiseBinaryArithOpPattern : public OpRewritePattern<linalg::GenericO
         else if (auto rhsConstOp = dyn_cast<arith::ConstantOp>(rhs.getDefiningOp())) {
             auto inputType = mlir::cast<RankedTensorType>(input0.getType());
             auto constAttr = rhsConstOp.getValue();
-            auto constTensor = rewriter.create<arith::ConstantOp>(
-                srcOp.getLoc(), inputType, DenseElementsAttr::get(inputType, constAttr)
-            );
+            auto constTensor = arith::ConstantOp::create(rewriter, srcOp.getLoc(), inputType, DenseElementsAttr::get(inputType, constAttr));
             input1 = constTensor.getResult();
         }
         else {
@@ -386,11 +384,8 @@ class RoundingRightShiftPattern : public OpRewritePattern<linalg::GenericOp> {
                 RankedTensorType::get(resultType.getShape(), rewriter.getI32Type());
             auto value = DenseIntElementsAttr::get(input2Type, data);
             input2 =
-                rewriter
-                    .create<arith::ConstantOp>(
-                        op.getLoc(),
-                        RankedTensorType::get(resultType.getShape(), rewriter.getI32Type()), value
-                    )
+                arith::ConstantOp::create(rewriter, op.getLoc(),
+                RankedTensorType::get(resultType.getShape(), rewriter.getI32Type()), value)
                     .getResult();
         }
 
@@ -470,9 +465,7 @@ class SelectOpPattern : public OpRewritePattern<linalg::GenericOp> {
             }
             else if (auto constOp = dyn_cast_or_null<arith::ConstantOp>(operand.getDefiningOp())) {
                 auto constAttr = constOp.getValue();
-                auto constTensor = rewriter.create<arith::ConstantOp>(
-                    srcOp.getLoc(), resultType, DenseElementsAttr::get(resultType, constAttr)
-                );
+                auto constTensor = arith::ConstantOp::create(rewriter, srcOp.getLoc(), resultType, DenseElementsAttr::get(resultType, constAttr));
                 selectInputs.push_back(constTensor.getResult());
             }
             else {

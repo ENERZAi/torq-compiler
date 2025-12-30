@@ -191,17 +191,13 @@ class ConvertConvValidPadToSamePadPattern : public OpRewritePattern<TorqConvOp> 
         rewriter.setInsertionPoint(conv2dOp);
         auto loc = conv2dOp.getLoc();
 
-        auto ConvInit = rewriter.create<tensor::EmptyOp>(
-            conv2dOp.getLoc(), new_output_type.getShape(), new_output_type.getElementType()
-        );
+        auto ConvInit = tensor::EmptyOp::create(rewriter, conv2dOp.getLoc(), new_output_type.getShape(), new_output_type.getElementType());
 
-        auto samepadConv = rewriter.create<TorqConvOp>(
-            loc, new_output_type, ConvInit.getResult(), conv2dOp.getInputZp(),
-            conv2dOp.getWeightZp(), conv2dOp.getOutputZp(), conv2dOp.getOutputMin(),
-            conv2dOp.getOutputMax(), conv2dOp.getShiftFactor(), conv2dOp.getGroups(), newPadAttr,
-            conv2dOp.getStride(), conv2dOp.getDilation(), conv2dOp.getVectorizationMode(),
-            conv2dOp.getWeights(), conv2dOp.getScaleBias(), conv2dOp.getInput()
-        );
+        auto samepadConv = TorqConvOp::create(rewriter, loc, new_output_type, ConvInit.getResult(), conv2dOp.getInputZp(),
+        conv2dOp.getWeightZp(), conv2dOp.getOutputZp(), conv2dOp.getOutputMin(),
+        conv2dOp.getOutputMax(), conv2dOp.getShiftFactor(), conv2dOp.getGroups(), newPadAttr,
+        conv2dOp.getStride(), conv2dOp.getDilation(), conv2dOp.getVectorizationMode(),
+        conv2dOp.getWeights(), conv2dOp.getScaleBias(), conv2dOp.getInput());
 
         // Extract slice offsets: only offset dimensions that were converted from VALID to SAME
         int64_t offset_h = has_valid_pad_h ? new_pad_top : 0;
@@ -212,9 +208,7 @@ class ConvertConvValidPadToSamePadPattern : public OpRewritePattern<TorqConvOp> 
             {output_shape[0], output_shape[1], output_shape[2], output_shape[3]}, rewriter
         );
         auto slice_strides = createVector({1, 1, 1, 1}, rewriter);
-        auto extractSliceOp = rewriter.create<tensor::ExtractSliceOp>(
-            loc, samepadConv.getOutput(), offsets, sizes, slice_strides
-        );
+        auto extractSliceOp = tensor::ExtractSliceOp::create(rewriter, loc, samepadConv.getOutput(), offsets, sizes, slice_strides);
 
         rewriter.replaceOp(conv2dOp, extractSliceOp.getResult());
         return success();
@@ -349,17 +343,13 @@ class ConvertConvValidToSamePadDirectPattern : public OpRewritePattern<TorqConvO
         rewriter.setInsertionPoint(conv2dOp);
         auto loc = conv2dOp.getLoc();
 
-        auto ConvInit = rewriter.create<tensor::EmptyOp>(
-            loc, new_output_shape, new_output_type.getElementType()
-        );
+        auto ConvInit = tensor::EmptyOp::create(rewriter, loc, new_output_shape, new_output_type.getElementType());
 
-        auto samepadConv = rewriter.create<TorqConvOp>(
-            loc, new_output_type, ConvInit.getResult(), conv2dOp.getInputZp(),
-            conv2dOp.getWeightZp(), conv2dOp.getOutputZp(), conv2dOp.getOutputMin(),
-            conv2dOp.getOutputMax(), conv2dOp.getShiftFactor(), conv2dOp.getGroups(), newPadAttr,
-            conv2dOp.getStride(), conv2dOp.getDilation(), conv2dOp.getVectorizationMode(),
-            conv2dOp.getWeights(), conv2dOp.getScaleBias(), sourceData
-        );
+        auto samepadConv = TorqConvOp::create(rewriter, loc, new_output_type, ConvInit.getResult(), conv2dOp.getInputZp(),
+        conv2dOp.getWeightZp(), conv2dOp.getOutputZp(), conv2dOp.getOutputMin(),
+        conv2dOp.getOutputMax(), conv2dOp.getShiftFactor(), conv2dOp.getGroups(), newPadAttr,
+        conv2dOp.getStride(), conv2dOp.getDilation(), conv2dOp.getVectorizationMode(),
+        conv2dOp.getWeights(), conv2dOp.getScaleBias(), sourceData);
 
         // NPU handles padding internally, so output matches input dimensions
         // Only add extract_slice if final output dimensions differ from input
@@ -375,9 +365,7 @@ class ConvertConvValidToSamePadDirectPattern : public OpRewritePattern<TorqConvO
                 {output_shape[0], output_shape[1], output_shape[2], output_shape[3]}, rewriter
             );
             auto slice_strides = createVector({1, 1, 1, 1}, rewriter);
-            auto extractSliceOp = rewriter.create<tensor::ExtractSliceOp>(
-                loc, samepadConv.getOutput(), offsets, sizes, slice_strides
-            );
+            auto extractSliceOp = tensor::ExtractSliceOp::create(rewriter, loc, samepadConv.getOutput(), offsets, sizes, slice_strides);
             rewriter.replaceOp(conv2dOp, extractSliceOp.getResult());
         }
         return success();
@@ -475,15 +463,13 @@ class EliminateRedundantConvPaddingPattern : public OpRewritePattern<TorqConvOp>
         auto loc = conv2dOp.getLoc();
 
         auto newInit =
-            rewriter.create<tensor::EmptyOp>(loc, newOutputShape, convOutputType.getElementType());
+            tensor::EmptyOp::create(rewriter, loc, newOutputShape, convOutputType.getElementType());
 
-        auto newConv = rewriter.create<TorqConvOp>(
-            loc, newOutputType, newInit.getResult(), conv2dOp.getInputZp(), conv2dOp.getWeightZp(),
-            conv2dOp.getOutputZp(), conv2dOp.getOutputMin(), conv2dOp.getOutputMax(),
-            conv2dOp.getShiftFactor(), conv2dOp.getGroups(), conv2dOp.getPadAttr(),
-            conv2dOp.getStride(), conv2dOp.getDilation(), conv2dOp.getVectorizationMode(),
-            conv2dOp.getWeights(), conv2dOp.getScaleBias(), sourceData
-        );
+        auto newConv = TorqConvOp::create(rewriter, loc, newOutputType, newInit.getResult(), conv2dOp.getInputZp(), conv2dOp.getWeightZp(),
+        conv2dOp.getOutputZp(), conv2dOp.getOutputMin(), conv2dOp.getOutputMax(),
+        conv2dOp.getShiftFactor(), conv2dOp.getGroups(), conv2dOp.getPadAttr(),
+        conv2dOp.getStride(), conv2dOp.getDilation(), conv2dOp.getVectorizationMode(),
+        conv2dOp.getWeights(), conv2dOp.getScaleBias(), sourceData);
 
         // Update extract_slice if present
         if (conv2dOp.getOutput().hasOneUse()) {
@@ -504,10 +490,8 @@ class EliminateRedundantConvPaddingPattern : public OpRewritePattern<TorqConvOp>
                         }
                     }
 
-                    auto newExtractSlice = rewriter.create<tensor::ExtractSliceOp>(
-                        extractSliceOp.getLoc(), newConv.getOutput(), newExtractOffsets,
-                        extractSizes, extractStrides
-                    );
+                    auto newExtractSlice = tensor::ExtractSliceOp::create(rewriter, extractSliceOp.getLoc(), newConv.getOutput(), newExtractOffsets,
+                    extractSizes, extractStrides);
 
                     rewriter.replaceOp(extractSliceOp, newExtractSlice.getResult());
                     rewriter.eraseOp(conv2dOp);

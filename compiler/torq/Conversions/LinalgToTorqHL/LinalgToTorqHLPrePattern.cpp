@@ -58,8 +58,8 @@ static DenseElementsAttr expandWeightsForDilation(
     newShape[newShape.size() - 1] = kwNew;
 
     Location loc = rewriter.getUnknownLoc();
-    auto weightsConst = rewriter.create<arith::ConstantOp>(loc, weights);
-    auto emptyTensor = rewriter.create<tensor::EmptyOp>(loc, newShape, elemType);
+    auto weightsConst = arith::ConstantOp::create(rewriter, loc, weights);
+    auto emptyTensor = tensor::EmptyOp::create(rewriter, loc, newShape, elemType);
 
     TypedAttr zeroAttr;
     if (elemType.isBF16() || elemType.isF16() || elemType.isF32()) {
@@ -72,9 +72,9 @@ static DenseElementsAttr expandWeightsForDilation(
         return nullptr;
     }
 
-    auto zeroConst = rewriter.create<arith::ConstantOp>(loc, zeroAttr);
+    auto zeroConst = arith::ConstantOp::create(rewriter, loc, zeroAttr);
     auto filledTensor =
-        rewriter.create<linalg::FillOp>(loc, ValueRange{zeroConst}, ValueRange{emptyTensor});
+        linalg::FillOp::create(rewriter, loc, ValueRange{zeroConst}, ValueRange{emptyTensor});
 
     SmallVector<AffineMap> indexingMaps;
     SmallVector<utils::IteratorType> iteratorTypes;
@@ -92,13 +92,11 @@ static DenseElementsAttr expandWeightsForDilation(
         iteratorTypes.push_back(utils::IteratorType::parallel);
     }
 
-    auto genericOp = rewriter.create<linalg::GenericOp>(
-        loc, RankedTensorType::get(newShape, elemType), ValueRange{weightsConst},
-        ValueRange{filledTensor.getResult(0)}, indexingMaps, iteratorTypes,
-        [&](OpBuilder &b, Location loc, ValueRange args) {
-            b.create<linalg::YieldOp>(loc, args[0]);
-        }
-    );
+    auto genericOp = linalg::GenericOp::create(rewriter, loc, RankedTensorType::get(newShape, elemType), ValueRange{weightsConst},
+    ValueRange{filledTensor.getResult(0)}, indexingMaps, iteratorTypes,
+    [&](OpBuilder &b, Location loc, ValueRange args) {
+        linalg::YieldOp::create(b, loc, args[0]);
+    });
 
     genericOp->setAttr("torq-compile-time-const", rewriter.getBoolAttr(true));
     auto result = computeConstant(genericOp.getResult(0));
@@ -161,7 +159,7 @@ static std::optional<std::pair<Value, PaddingInfo>> convertStridedInsertSliceToI
     }
 
     auto interleavedResultType = RankedTensorType::get(interleavedShape4D, elemType);
-    Value interleavedInit = rewriter.create<tensor::EmptyOp>(loc, interleavedShape4D, elemType);
+    Value interleavedInit = tensor::EmptyOp::create(rewriter, loc, interleavedShape4D, elemType);
 
     // Set clipping values based on data type
     int32_t output_min, output_max;
@@ -203,11 +201,9 @@ static std::optional<std::pair<Value, PaddingInfo>> convertStridedInsertSliceToI
     }
 
     // Create InterleavedInsertOp
-    auto interleavedOp = rewriter.create<torq_hl::InterleavedInsertOp>(
-        loc, interleavedResultType, interleavedInit, rewriter.getI32IntegerAttr(strideValue),
-        rewriter.getI32IntegerAttr(output_min), rewriter.getI32IntegerAttr(output_max), weights,
-        source
-    );
+    auto interleavedOp = torq_hl::InterleavedInsertOp::create(rewriter, loc, interleavedResultType, interleavedInit, rewriter.getI32IntegerAttr(strideValue),
+    rewriter.getI32IntegerAttr(output_min), rewriter.getI32IntegerAttr(output_max), weights,
+    source);
 
     Value interleavedOutput = interleavedOp.getOutput();
 
@@ -217,7 +213,7 @@ static std::optional<std::pair<Value, PaddingInfo>> convertStridedInsertSliceToI
         SmallVector<int64_t> paddedShape4D = interleavedShape4D;
         paddedShape4D[interleavedDim] = destShape[interleavedDim]; // Use original dest size
 
-        Value paddedInit = rewriter.create<tensor::EmptyOp>(loc, paddedShape4D, elemType);
+        Value paddedInit = tensor::EmptyOp::create(rewriter, loc, paddedShape4D, elemType);
 
         // Fill with zeros
         TypedAttr fillValue;
@@ -234,10 +230,8 @@ static std::optional<std::pair<Value, PaddingInfo>> convertStridedInsertSliceToI
             fillValue = rewriter.getZeroAttr(elemType);
         }
 
-        Value fillValueAsValue = rewriter.create<arith::ConstantOp>(loc, fillValue);
-        auto fillOp = rewriter.create<linalg::FillOp>(
-            loc, ValueRange{fillValueAsValue}, ValueRange{paddedInit}
-        );
+        Value fillValueAsValue = arith::ConstantOp::create(rewriter, loc, fillValue);
+        auto fillOp = linalg::FillOp::create(rewriter, loc, ValueRange{fillValueAsValue}, ValueRange{paddedInit});
 
         // Insert the interleaved output at the correct offset
         SmallVector<OpFoldResult> offsets(paddedShape4D.size(), rewriter.getIndexAttr(0));
@@ -250,9 +244,7 @@ static std::optional<std::pair<Value, PaddingInfo>> convertStridedInsertSliceToI
 
         SmallVector<OpFoldResult> strides(paddedShape4D.size(), rewriter.getIndexAttr(1));
 
-        interleavedOutput = rewriter.create<tensor::InsertSliceOp>(
-            loc, interleavedOutput, fillOp.getResult(0), offsets, sizes, strides
-        );
+        interleavedOutput = tensor::InsertSliceOp::create(rewriter, loc, interleavedOutput, fillOp.getResult(0), offsets, sizes, strides);
 
         LLVM_DEBUG({
             llvm::dbgs() << "Applied padding [" << topPadding << ", " << bottomPadding
@@ -511,12 +503,10 @@ struct Conv2dConvert : public OpRewritePattern<LinalgConvOp> {
         bool nhwcInput = _channelDim == 3 && _dataPerm.empty();
         auto torqOutType = transposeType(output.getType(), _dataPerm);
 
-        auto torqConvOp = rewriter.create<TorqConvOp>(
-            loc, torqOutType, createInitTensor(convOp, rewriter, torqOutType), padInfo.padValue, 0,
-            scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift, groups, padInfo.lrtbPad,
-            attrValues(convOp.getStrides()), finalDilationVec, torq_hl::VectorizationModeEnum::None,
-            torqWeights, biasScale, input, nhwcInput
-        );
+        auto torqConvOp = TorqConvOp::create(rewriter, loc, torqOutType, createInitTensor(convOp, rewriter, torqOutType), padInfo.padValue, 0,
+        scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift, groups, padInfo.lrtbPad,
+        attrValues(convOp.getStrides()), finalDilationVec, torq_hl::VectorizationModeEnum::None,
+        torqWeights, biasScale, input, nhwcInput);
         auto torqOut = transposeValue(torqConvOp.getOutput(), _dataPerm.reverse(), loc, rewriter);
         rewriter.replaceOp(output.getDefiningOp(), torqOut);
         return success();
@@ -610,10 +600,8 @@ struct Conv2dConvert : public OpRewritePattern<LinalgConvOp> {
             torqOutType = RankedTensorType::get(torqOutShape, torqOutType.getElementType());
         }
         else {
-            auto transposeReshape = rewriter.create<torq_hl::TransposeReshapeOp>(
-                loc, transposedType, createInitTensor(convOp, rewriter, transposedType),
-                attrValues(convOp.getStrides()), weightType.getShape(), permAttr, input
-            );
+            auto transposeReshape = torq_hl::TransposeReshapeOp::create(rewriter, loc, transposedType, createInitTensor(convOp, rewriter, transposedType),
+            attrValues(convOp.getStrides()), weightType.getShape(), permAttr, input);
             input = transposeReshape.getOutput();
             // Reset stride to 1 for Conv1DOp as the actual stride is handled in TransposeReshape
             strideValue = 1;
@@ -622,12 +610,10 @@ struct Conv2dConvert : public OpRewritePattern<LinalgConvOp> {
         llvm::SmallVector<int64_t> zeroPad(4, 0);
         llvm::SmallVector<int64_t> stride = {strideValue};
 
-        auto torqConv1Op = rewriter.create<torq_hl::Conv1DOp>(
-            loc, torqOutType, createInitTensor(convOp, rewriter, torqOutType), 0, weightZp,
-            scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift, groups, zeroPad, stride,
-            attrValues(convOp.getDilations()), torq_hl::VectorizationModeEnum::None, torqWeights,
-            biasScale, input
-        );
+        auto torqConv1Op = torq_hl::Conv1DOp::create(rewriter, loc, torqOutType, createInitTensor(convOp, rewriter, torqOutType), 0, weightZp,
+        scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift, groups, zeroPad, stride,
+        attrValues(convOp.getDilations()), torq_hl::VectorizationModeEnum::None, torqWeights,
+        biasScale, input);
         Value torqOut = torqConv1Op.getOutput();
 
         if (useConv1dWithReduce) {
@@ -638,18 +624,14 @@ struct Conv2dConvert : public OpRewritePattern<LinalgConvOp> {
             // Create a tensor filled with zeros of type torqOutType.getElementType()
             Value zeroValue = createZeroConstant(rewriter, loc, torqOutType.getElementType());
             auto cEmpty =
-                rewriter.create<tensor::EmptyOp>(loc, reducedShape, torqOutType.getElementType());
+                tensor::EmptyOp::create(rewriter, loc, reducedShape, torqOutType.getElementType());
             Value zeroTensor =
-                rewriter.create<linalg::FillOp>(loc, ValueRange{zeroValue}, ValueRange{cEmpty})
+                linalg::FillOp::create(rewriter, loc, ValueRange{zeroValue}, ValueRange{cEmpty})
                     .result();
-            linalg::ReduceOp reduceOp = rewriter.create<linalg::ReduceOp>(
-                loc, ValueRange{torqOut}, ValueRange{zeroTensor}, 4,
-                [&](OpBuilder &b, Location l, ValueRange args) {
-                    b.create<linalg::YieldOp>(
-                        l, ValueRange{b.create<arith::AddFOp>(l, args[0], args[1])}
-                    );
-                }
-            );
+            linalg::ReduceOp reduceOp = linalg::ReduceOp::create(rewriter, loc, ValueRange{torqOut}, ValueRange{zeroTensor}, 4,
+            [&](OpBuilder &b, Location l, ValueRange args) {
+                linalg::YieldOp::create(b, l, ValueRange{arith::AddFOp::create(b, l, args[0], args[1])});
+            });
 
             torqOut = reduceOp->getResult(0);
         }
@@ -729,12 +711,10 @@ struct PoolingNhwcMaxOpConversion : public OpRewritePattern<linalg::PoolingNhwcM
         input = transposeValue(input, dataPerm, loc, rewriter);
         srcResultType = transposeType(srcResultType, dataPerm);
 
-        auto maxpoolOp = rewriter.create<torq_hl::MaxPool2dOp>(
-            loc, srcResultType, createInitTensor(srcOp, rewriter, srcResultType), padInfo.padValue,
-            attrStrides, padInfo.lrtbPad, kernels,
-            createI8Const(rewriter, srcOp, weight, llvm::ArrayRef<int64_t>{1, 1, 1, 1}),
-            createI32Const(rewriter, srcOp, interleave(bias, scale)), input
-        );
+        auto maxpoolOp = torq_hl::MaxPool2dOp::create(rewriter, loc, srcResultType, createInitTensor(srcOp, rewriter, srcResultType), padInfo.padValue,
+        attrStrides, padInfo.lrtbPad, kernels,
+        createI8Const(rewriter, srcOp, weight, llvm::ArrayRef<int64_t>{1, 1, 1, 1}),
+        createI32Const(rewriter, srcOp, interleave(bias, scale)), input);
         auto result = transposeValue(maxpoolOp.getOutput(), dataPerm.reverse(), loc, rewriter);
 
         rewriter.replaceOp(output.getDefiningOp(), result);
@@ -836,12 +816,10 @@ template <class OpTy> struct FCMatmulOpConversion : public OpRewritePattern<OpTy
         // get new output type as above various changes for output
         outputType = llvm::cast<RankedTensorType>(output.getType());
 
-        auto fcOp = rewriter.create<torq_hl::FullyConnectedOp>(
-            loc, outputType, createInitTensor(srcOp, rewriter, outputType), input_zp,
-            0, // weight zp
-            scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift,
-            torq_hl::VectorizationModeEnum::None, torqWeights, biasScale, inputA
-        );
+        auto fcOp = torq_hl::FullyConnectedOp::create(rewriter, loc, outputType, createInitTensor(srcOp, rewriter, outputType), input_zp,
+        0, // weight zp
+        scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift,
+        torq_hl::VectorizationModeEnum::None, torqWeights, biasScale, inputA);
         rewriter.replaceOp(output.getDefiningOp(), fcOp.getOutput());
 
         return success();
@@ -1001,17 +979,15 @@ struct Conv2DMatmulOpConversion : public OpRewritePattern<linalg::MatmulOp> {
 
         auto torqWeights = convertWeights(srcOp, weightAttr, rewriter);
 
-        auto conv2dOp = rewriter.create<syna::torq_hl::Conv2DOp>(
-            loc, finalType, initTensor,
-            input_zp, // input_zp
-            0,        // weight_zp
-            scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift,
-            1,        // groups
-            pad,      // pad
-            stride,   // stride
-            dilation, // dilation
-            vectorizationMode, torqWeights, biasScale, input
-        );
+        auto conv2dOp = syna::torq_hl::Conv2DOp::create(rewriter, loc, finalType, initTensor,
+        input_zp, // input_zp
+        0,        // weight_zp
+        scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift,
+        1,        // groups
+        pad,      // pad
+        stride,   // stride
+        dilation, // dilation
+        vectorizationMode, torqWeights, biasScale, input);
 
         auto torqOut =
             transposeValue(conv2dOp.getOutput(), Permutation::nhwc2nchw().reverse(), loc, rewriter);
@@ -1216,17 +1192,15 @@ struct Conv2DNchwMatmulOpConversion : public OpRewritePattern<linalg::MatmulOp> 
 
         auto torqWeights = convertWeights(srcOp, weightAttr, rewriter);
 
-        auto conv2dOp = rewriter.create<syna::torq_hl::Conv2DOp>(
-            loc, finalType, initTensor,
-            input_zp, // input_zp
-            0,        // weight_zp
-            scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift,
-            1,        // groups
-            pad,      // pad
-            stride,   // stride
-            dilation, // dilation
-            vectorizationMode, torqWeights, biasScale, input
-        );
+        auto conv2dOp = syna::torq_hl::Conv2DOp::create(rewriter, loc, finalType, initTensor,
+        input_zp, // input_zp
+        0,        // weight_zp
+        scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift,
+        1,        // groups
+        pad,      // pad
+        stride,   // stride
+        dilation, // dilation
+        vectorizationMode, torqWeights, biasScale, input);
 
         rewriter.replaceOp(output.getDefiningOp(), conv2dOp.getOutput());
 
@@ -1285,7 +1259,7 @@ struct Conv1DNcwFcwToLinalgMatmulPattern : public OpRewritePattern<linalg::Conv1
         // Shape: [Ow, C*Kw] - each row contains a full patch for one output position
         SmallVector<int64_t> unfoldedShape = {Ow, C * Kw};
         auto unfoldedType = RankedTensorType::get(unfoldedShape, elemType);
-        auto unfoldedInit = rewriter.create<tensor::EmptyOp>(loc, unfoldedShape, elemType);
+        auto unfoldedInit = tensor::EmptyOp::create(rewriter, loc, unfoldedShape, elemType);
 
         // Create the im2col transformation using a linalg.generic
         SmallVector<AffineExpr> unfoldIndexExprs;
@@ -1310,13 +1284,11 @@ struct Conv1DNcwFcwToLinalgMatmulPattern : public OpRewritePattern<linalg::Conv1
         // Create the generic op for unfolding with explicit iterator types
         SmallVector<utils::IteratorType> iteratorTypes(2, utils::IteratorType::parallel);
 
-        auto im2col = rewriter.create<linalg::GenericOp>(
-            loc, TypeRange{unfoldedType}, ValueRange{input}, ValueRange{unfoldedInit},
-            ArrayRef<AffineMap>{unfoldIndexMap, outputIndexMap}, iteratorTypes,
-            [&](OpBuilder &nestedBuilder, Location nestedLoc, ValueRange blockArgs) {
-                nestedBuilder.create<linalg::YieldOp>(nestedLoc, blockArgs[0]);
-            }
-        );
+        auto im2col = linalg::GenericOp::create(rewriter, loc, TypeRange{unfoldedType}, ValueRange{input}, ValueRange{unfoldedInit},
+        ArrayRef<AffineMap>{unfoldIndexMap, outputIndexMap}, iteratorTypes,
+        [&](OpBuilder &nestedBuilder, Location nestedLoc, ValueRange blockArgs) {
+            linalg::YieldOp::create(nestedBuilder, nestedLoc, blockArgs[0]);
+        });
 
         // Set torq.im2col attribute so that we can easily recognize this op during tiling
         im2col->setAttr("torq.im2col", rewriter.getBoolAttr(true));
@@ -1326,9 +1298,7 @@ struct Conv1DNcwFcwToLinalgMatmulPattern : public OpRewritePattern<linalg::Conv1
         SmallVector<int64_t> reshapedFilterShape = {F, C * Kw};
         auto reshapedFilterType =
             RankedTensorType::get(reshapedFilterShape, filterType.getElementType());
-        auto reshapedFilter = rewriter.create<tensor::CollapseShapeOp>(
-            loc, reshapedFilterType, filter, ArrayRef<ReassociationIndices>{{0}, {1, 2}}
-        );
+        auto reshapedFilter = tensor::CollapseShapeOp::create(rewriter, loc, reshapedFilterType, filter, ArrayRef<ReassociationIndices>{{0}, {1, 2}});
 
         // Step 3: Create the matmul operation
         // We'll do: [F, C*Kw] @ [Ow, C*Kw]^T -> [F, Ow]
@@ -1336,16 +1306,14 @@ struct Conv1DNcwFcwToLinalgMatmulPattern : public OpRewritePattern<linalg::Conv1
         SmallVector<int64_t> transposedUnfoldedShape = {C * Kw, Ow};
         // auto transposedUnfoldedType = RankedTensorType::get(transposedUnfoldedShape, elemType);
         auto transposedUnfoldedInit =
-            rewriter.create<tensor::EmptyOp>(loc, transposedUnfoldedShape, elemType);
+            tensor::EmptyOp::create(rewriter, loc, transposedUnfoldedShape, elemType);
 
-        auto transposedUnfolded = rewriter.create<linalg::TransposeOp>(
-            loc, unfoldedInput, transposedUnfoldedInit, ArrayRef<int64_t>{1, 0}
-        );
+        auto transposedUnfolded = linalg::TransposeOp::create(rewriter, loc, unfoldedInput, transposedUnfoldedInit, ArrayRef<int64_t>{1, 0});
 
         // Create the matmul output tensor [F, Ow]
         SmallVector<int64_t> matmulResultShape = {F, Ow};
         auto matmulResultType = RankedTensorType::get(matmulResultShape, outputElemType);
-        auto matmulInit = rewriter.create<tensor::EmptyOp>(loc, matmulResultShape, outputElemType);
+        auto matmulInit = tensor::EmptyOp::create(rewriter, loc, matmulResultShape, outputElemType);
 
         // Perform the actual matmul
         // Perform the actual matmul
@@ -1357,15 +1325,13 @@ struct Conv1DNcwFcwToLinalgMatmulPattern : public OpRewritePattern<linalg::Conv1
         outputs.push_back(matmulInit.getResult());
 
         auto matmulOp =
-            rewriter.create<linalg::MatmulOp>(loc, TypeRange{matmulResultType}, inputs, outputs);
+            linalg::MatmulOp::create(rewriter, loc, TypeRange{matmulResultType}, inputs, outputs);
 
         // Step 4: Reshape the result back to [N, F, Ow]
         if (N == 1) {
             // Simply reshape to add the batch dimension
-            auto finalResult = rewriter.create<tensor::ExpandShapeOp>(
-                loc, matmulResultType, matmulOp.getResults()[0],
-                ArrayRef<ReassociationIndices>{{0, 1}, {2}}
-            );
+            auto finalResult = tensor::ExpandShapeOp::create(rewriter, loc, matmulResultType, matmulOp.getResults()[0],
+            ArrayRef<ReassociationIndices>{{0, 1}, {2}});
 
             rewriter.replaceOp(convOp, finalResult);
         }
@@ -1406,7 +1372,7 @@ struct Conv1DNcwFcwToLinalgConv2DPattern : public OpRewritePattern<linalg::Conv1
         );
 
         auto expandedInput =
-            rewriter.create<tensor::ExpandShapeOp>(loc, expandedInputType, input, inputReassoc);
+            tensor::ExpandShapeOp::create(rewriter, loc, expandedInputType, input, inputReassoc);
 
         // Transpose to NHWC format: [N,C,1,W] -> [N,1,W,C]
         SmallVector<int64_t> inputPerm = {0, 2, 3, 1};
@@ -1420,7 +1386,7 @@ struct Conv1DNcwFcwToLinalgConv2DPattern : public OpRewritePattern<linalg::Conv1
         );
 
         auto expandedFilter =
-            rewriter.create<tensor::ExpandShapeOp>(loc, expandedFilterType, filter, filterReassoc);
+            tensor::ExpandShapeOp::create(rewriter, loc, expandedFilterType, filter, filterReassoc);
 
         // Transpose to HWCF format: [F,C,1,W] -> [1,W,C,F]
         SmallVector<int64_t> filterPerm = {2, 3, 1, 0};
@@ -1434,7 +1400,7 @@ struct Conv1DNcwFcwToLinalgConv2DPattern : public OpRewritePattern<linalg::Conv1
         );
 
         auto expandedOutput =
-            rewriter.create<tensor::ExpandShapeOp>(loc, expandedOutputType, output, outputReassoc);
+            tensor::ExpandShapeOp::create(rewriter, loc, expandedOutputType, output, outputReassoc);
 
         // Transpose to NHWC format: [N,F,1,W] -> [N,1,W,F]
         SmallVector<int64_t> outputPerm = {0, 2, 3, 1};
@@ -1455,18 +1421,14 @@ struct Conv1DNcwFcwToLinalgConv2DPattern : public OpRewritePattern<linalg::Conv1
         auto dilationsAttr2d = DenseIntElementsAttr::get(attrType, dilations2d);
 
         // Create Conv2D
-        auto conv2d = rewriter.create<linalg::Conv2DNhwcHwcfOp>(
-            loc, nhwcOutput.getType(), ValueRange{nhwcInput, hwcfFilter}, ValueRange{nhwcOutput},
-            stridesAttr2d, dilationsAttr2d
-        );
+        auto conv2d = linalg::Conv2DNhwcHwcfOp::create(rewriter, loc, nhwcOutput.getType(), ValueRange{nhwcInput, hwcfFilter}, ValueRange{nhwcOutput},
+        stridesAttr2d, dilationsAttr2d);
 
         // Transpose result back: [N,1,W,F] -> [N,F,1,W]
         Value transposedResult = transposeValue(conv2d.getResult(0), {0, 3, 1, 2}, loc, rewriter);
 
         // Collapse height dimension: [N,F,1,W] -> [N,F,W]
-        auto collapsedResult = rewriter.create<tensor::CollapseShapeOp>(
-            loc, outputType, transposedResult, outputReassoc
-        );
+        auto collapsedResult = tensor::CollapseShapeOp::create(rewriter, loc, outputType, transposedResult, outputReassoc);
 
         rewriter.replaceOp(convOp, collapsedResult.getResult());
         return success();
@@ -1559,9 +1521,7 @@ struct InterleavedInsertSlicePattern : public OpRewritePattern<tensor::InsertSli
             SmallVector<int64_t> expanded4DShape = {1, 1, sourceShape[0], sourceShape[1]};
             auto expanded4DType =
                 RankedTensorType::get(expanded4DShape, sourceType.getElementType());
-            source4D = rewriter.create<tensor::ExpandShapeOp>(
-                insertSliceOp.getLoc(), expanded4DType, source, expandReassoc
-            );
+            source4D = tensor::ExpandShapeOp::create(rewriter, insertSliceOp.getLoc(), expanded4DType, source, expandReassoc);
             sourceType = expanded4DType;
             sourceShape = expanded4DShape;
         }
@@ -1586,9 +1546,7 @@ struct InterleavedInsertSlicePattern : public OpRewritePattern<tensor::InsertSli
             RankedTensorType::get(interleavedShape4D, sourceType.getElementType());
 
         // Create init tensor for the interleaved output (4D NCHW, without padding)
-        Value interleavedInit = rewriter.create<tensor::EmptyOp>(
-            insertSliceOp.getLoc(), interleavedShape4D, sourceType.getElementType()
-        );
+        Value interleavedInit = tensor::EmptyOp::create(rewriter, insertSliceOp.getLoc(), interleavedShape4D, sourceType.getElementType());
 
         // Get element type for determining data type-specific values
         auto elemType = sourceType.getElementType();
@@ -1641,11 +1599,9 @@ struct InterleavedInsertSlicePattern : public OpRewritePattern<tensor::InsertSli
             );
         }
 
-        auto interleavedOp = rewriter.create<torq_hl::InterleavedInsertOp>(
-            insertSliceOp.getLoc(), interleavedResultType, interleavedInit,
-            rewriter.getI32IntegerAttr(strideValue), rewriter.getI32IntegerAttr(output_min),
-            rewriter.getI32IntegerAttr(output_max), weights, source4D
-        );
+        auto interleavedOp = torq_hl::InterleavedInsertOp::create(rewriter, insertSliceOp.getLoc(), interleavedResultType, interleavedInit,
+        rewriter.getI32IntegerAttr(strideValue), rewriter.getI32IntegerAttr(output_min),
+        rewriter.getI32IntegerAttr(output_max), weights, source4D);
 
         // Replace the insert_slice with the InterleavedInsertOp output directly
         // No padding handling needed - output is exactly 32x2 (interleaved size)

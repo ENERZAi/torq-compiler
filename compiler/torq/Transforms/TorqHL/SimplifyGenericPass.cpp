@@ -101,15 +101,13 @@ class MergePInitialization : public OpRewritePattern<torq_hl::GenericOp> {
 
         auto biasMap = pOpInMap.compose(genericOpPMap);
 
-        Value emptyTensor = rewriter.create<tensor::EmptyOp>(
-            genericOp.getLoc(), genericOp.getP().getType(), ValueRange{}
-        );
+        Value emptyTensor = tensor::EmptyOp::create(rewriter, genericOp.getLoc(), genericOp.getP().getType(), ValueRange{});
 
         Value zeroConst =
-            rewriter.create<arith::ConstantOp>(genericOp.getLoc(), rewriter.getI32IntegerAttr(0));
+            arith::ConstantOp::create(rewriter, genericOp.getLoc(), rewriter.getI32IntegerAttr(0));
 
         Value zeroTensor =
-            rewriter.create<linalg::FillOp>(genericOp.getLoc(), zeroConst, emptyTensor).result();
+            linalg::FillOp::create(rewriter, genericOp.getLoc(), zeroConst, emptyTensor).result();
 
         GenericOpConfig config = GenericOpConfig::fromOperation(genericOp);
 
@@ -218,15 +216,10 @@ class MergeAluAct : public OpRewritePattern<torq_hl::GenericOp> {
                 return failure();
             }
 
-            Value emptyTensor = rewriter.create<tensor::EmptyOp>(
-                actOp.getLoc(), actOp.getBias().getType(), ValueRange{}
-            );
+            Value emptyTensor = tensor::EmptyOp::create(rewriter, actOp.getLoc(), actOp.getBias().getType(), ValueRange{});
 
-            newBias = rewriter
-                          .create<linalg::AddOp>(
-                              actOp.getLoc(), ValueRange{actOp.getBias(), aluOp.getBias()},
-                              ValueRange{emptyTensor}
-                          )
+            newBias = linalg::AddOp::create(rewriter, actOp.getLoc(), ValueRange{actOp.getBias(), aluOp.getBias()},
+            ValueRange{emptyTensor})
                           .getResult(0);
         }
 

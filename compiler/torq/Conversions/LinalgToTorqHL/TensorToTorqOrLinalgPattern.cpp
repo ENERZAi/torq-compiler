@@ -71,9 +71,7 @@ struct CollapseShapeOpToLinalgRewrite : public OpRewritePattern<tensor::Collapse
         TensorType outputTensorType = cast<TensorType>(collapseOp.getResult().getType());
         int64_t numOutputDims = outputTensorType.getRank();
 
-        Value emptyOutput = rewriter.create<tensor::EmptyOp>(
-            collapseOp.getLoc(), collapseOp.getResult().getType(), mlir::ValueRange()
-        );
+        Value emptyOutput = tensor::EmptyOp::create(rewriter, collapseOp.getLoc(), collapseOp.getResult().getType(), mlir::ValueRange());
 
         // identity map (d0, d1, ...) -> (d0, d1, ...).
         AffineMap outputMap = rewriter.getMultiDimIdentityMap(numOutputDims);
@@ -122,7 +120,7 @@ struct CollapseShapeOpToLinalgRewrite : public OpRewritePattern<tensor::Collapse
             /*iteratorTypes=*/iteratorTypes,
             [&](OpBuilder &nestedBuilder, Location nestedLoc, ValueRange blockArgs) {
                 // The body of the linalg.generic: simply yield the input value.
-                nestedBuilder.create<linalg::YieldOp>(nestedLoc, blockArgs[0]);
+                linalg::YieldOp::create(nestedBuilder, nestedLoc, blockArgs[0]);
             },
             // It's important that we clone the torq-fuse-group attribute
             collapseOp->getAttrs()
@@ -171,9 +169,7 @@ struct ExpandShapeOpToLinalgRewrite : public OpRewritePattern<tensor::ExpandShap
         TensorType outputTensorType = cast<TensorType>(expandOp.getResult().getType());
         int64_t numOutputDims = outputTensorType.getRank();
 
-        Value emptyOutput = rewriter.create<tensor::EmptyOp>(
-            expandOp.getLoc(), expandOp.getResult().getType(), mlir::ValueRange()
-        );
+        Value emptyOutput = tensor::EmptyOp::create(rewriter, expandOp.getLoc(), expandOp.getResult().getType(), mlir::ValueRange());
 
         // identity map (d0, d1, ...) -> (d0, d1, ...).
         AffineMap outputMap = rewriter.getMultiDimIdentityMap(numOutputDims);
@@ -219,7 +215,7 @@ struct ExpandShapeOpToLinalgRewrite : public OpRewritePattern<tensor::ExpandShap
             /*iteratorTypes=*/iteratorTypes,
             [&](OpBuilder &nestedBuilder, Location nestedLoc, ValueRange blockArgs) {
                 // The body of the linalg.generic: simply yield the input value.
-                nestedBuilder.create<linalg::YieldOp>(nestedLoc, blockArgs[0]);
+                linalg::YieldOp::create(nestedBuilder, nestedLoc, blockArgs[0]);
             },
             // It's important that we clone the torq-fuse-group attribute
             expandOp->getAttrs()

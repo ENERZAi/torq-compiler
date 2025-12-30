@@ -1136,10 +1136,8 @@ PaddingInfo foldBackwardPadding(Value &value, PatternRewriter &rewriter, bool nc
             sizes[wDim] -= left;
             sizes[wDim] -= right;
 
-            tensor::ExtractSliceOp newExtractSliceOp = rewriter.create<tensor::ExtractSliceOp>(
-                value.getLoc(), val, createVector(offsets, rewriter), createVector(sizes, rewriter),
-                createVector(strides, rewriter)
-            );
+            tensor::ExtractSliceOp newExtractSliceOp = tensor::ExtractSliceOp::create(rewriter, value.getLoc(), val, createVector(offsets, rewriter), createVector(sizes, rewriter),
+            createVector(strides, rewriter));
 
             val = newExtractSliceOp.getResult();
         }
@@ -1875,14 +1873,12 @@ LogicalResult foldForwardDepthToSpace(
     auto d2s_enum_mode =
         d2s_mode == 1 ? torq_hl::DepthToSpaceModeEnum::DCR : torq_hl::DepthToSpaceModeEnum::CRD;
 
-    auto d2sOp = rewriter.create<torq_hl::DepthToSpaceOp>(
-        transposeOp.getLoc(), transposeType(collapseOp.getResult().getType(), d2s_input_type),
-        createInitTensorNCHW(collapseOp, rewriter), blockSize, d2s_enum_mode,
-        createI8Const(
-            rewriter, transposeOp, d2s_weights, llvm::ArrayRef<int64_t>{wram_width * num_inputs}
-        ),
-        transposeValue(expandOp.getOperand(0), d2s_input_type, transposeOp.getLoc(), rewriter)
-    );
+    auto d2sOp = torq_hl::DepthToSpaceOp::create(rewriter, transposeOp.getLoc(), transposeType(collapseOp.getResult().getType(), d2s_input_type),
+    createInitTensorNCHW(collapseOp, rewriter), blockSize, d2s_enum_mode,
+    createI8Const(
+        rewriter, transposeOp, d2s_weights, llvm::ArrayRef<int64_t>{wram_width * num_inputs}
+    ),
+    transposeValue(expandOp.getOperand(0), d2s_input_type, transposeOp.getLoc(), rewriter));
     auto targetOp =
         transposeValue(d2sOp.getOutput(), d2s_output_type, transposeOp.getLoc(), rewriter);
     collapseOp.replaceAllUsesWith(targetOp);
@@ -2095,7 +2091,7 @@ Value create1DimTensorFromRescaleScalar(
         LLVM_DEBUG({ llvm::errs() << "only support 8/16/32 bit integer\n"; });
         return input;
     }
-    auto output = rewriter.create<arith::ConstantOp>(constOp.getLoc(), constType, value);
+    auto output = arith::ConstantOp::create(rewriter, constOp.getLoc(), constType, value);
 
     return output.getResult();
 }

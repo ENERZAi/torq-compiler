@@ -332,14 +332,10 @@ static void convertScalarInOutsToTensors(SmallVector<OutliningGroup> &groups) {
 
             // we use tensor.insert to be symmetric with the output conversion
             auto emptyOp =
-                rewriter.create<tensor::EmptyOp>(scalarInput.getLoc(), tensorType, ValueRange{});
-            auto toTensorOp = rewriter.create<tensor::InsertOp>(
-                scalarInput.getLoc(), tensorType, scalarInput, emptyOp.getResult(), ValueRange{}
-            );
+                tensor::EmptyOp::create(rewriter, scalarInput.getLoc(), tensorType, ValueRange{});
+            auto toTensorOp = tensor::InsertOp::create(rewriter, scalarInput.getLoc(), tensorType, scalarInput, emptyOp.getResult(), ValueRange{});
 
-            auto toScalarOp = rewriter.create<tensor::ExtractOp>(
-                scalarInput.getLoc(), scalarInput.getType(), toTensorOp.getResult(), ValueRange{}
-            );
+            auto toScalarOp = tensor::ExtractOp::create(rewriter, scalarInput.getLoc(), scalarInput.getType(), toTensorOp.getResult(), ValueRange{});
 
             // insert at the beginning of the group so that it is outlined before
             // their users
@@ -356,18 +352,14 @@ static void convertScalarInOutsToTensors(SmallVector<OutliningGroup> &groups) {
             rewriter.setInsertionPointAfter(scalarOutput.getDefiningOp());
 
             auto emptyTensor =
-                rewriter.create<tensor::EmptyOp>(scalarOutput.getLoc(), tensorType, ValueRange{});
+                tensor::EmptyOp::create(rewriter, scalarOutput.getLoc(), tensorType, ValueRange{});
 
             // here we use insert op instead of from_elements to avoid
             // an error during compilation with LLVMCPU backend
-            auto toTensorOp = rewriter.create<tensor::InsertOp>(
-                scalarOutput.getLoc(), tensorType, scalarOutput, emptyTensor.getResult(),
-                ValueRange{}
-            );
+            auto toTensorOp = tensor::InsertOp::create(rewriter, scalarOutput.getLoc(), tensorType, scalarOutput, emptyTensor.getResult(),
+            ValueRange{});
 
-            auto toScalarOp = rewriter.create<tensor::ExtractOp>(
-                scalarOutput.getLoc(), scalarOutput.getType(), toTensorOp.getResult(), ValueRange{}
-            );
+            auto toScalarOp = tensor::ExtractOp::create(rewriter, scalarOutput.getLoc(), scalarOutput.getType(), toTensorOp.getResult(), ValueRange{});
 
             // insert at the end of the group so that it is outlined after their producer
             group.toOutline.push_back(emptyTensor);
@@ -472,7 +464,7 @@ static LogicalResult outlineGroup(OutliningGroup &group) {
             auto initEncoding = createDenseEncoding(rankedTensorType, executorMemorySpace);
             auto initType = createRankedTensorTypeWithEncoding(rankedTensorType, initEncoding);
             initTensor =
-                rewriter.create<tensor::EmptyOp>(group.root->getLoc(), initType, ValueRange{});
+                tensor::EmptyOp::create(rewriter, group.root->getLoc(), initType, ValueRange{});
         }
 
         executorInits.push_back(initTensor);
@@ -480,10 +472,8 @@ static LogicalResult outlineGroup(OutliningGroup &group) {
     }
 
     // call the program
-    auto callOp = rewriter.create<torq_hl::CallProgramOp>(
-        group.root->getLoc(), executorOutputTypes, maybeOutlineResult->program, executorInits,
-        executorInputs
-    );
+    auto callOp = torq_hl::CallProgramOp::create(rewriter, group.root->getLoc(), executorOutputTypes, maybeOutlineResult->program, executorInits,
+    executorInputs);
 
     // we need to convert back the outputs to the original encoding
     for (auto [idx, output] : llvm::enumerate(maybeOutlineResult->outputs)) {

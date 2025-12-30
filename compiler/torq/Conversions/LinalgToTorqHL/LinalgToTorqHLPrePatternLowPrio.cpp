@@ -172,22 +172,18 @@ struct EltwiseBinaryConvert : public OpRewritePattern<linalg::GenericOp> {
                 auto newOutputType =
                     RankedTensorType::get(maybeElemOpOutputShape, inputElementType);
 
-                auto emptyOp = rewriter.create<tensor::EmptyOp>(
-                    maybeElemOp.getLoc(), newOutputType.getShape(), newOutputType.getElementType()
-                );
+                auto emptyOp = tensor::EmptyOp::create(rewriter, maybeElemOp.getLoc(), newOutputType.getShape(), newOutputType.getElementType());
 
-                auto newOp = rewriter.create<linalg::GenericOp>(
-                    loc, ArrayRef<Type>{newOutputType}, ValueRange{input}, ValueRange{emptyOp},
-                    /*indexingMaps=*/
-                    ArrayRef<AffineMap>{
-                        maybeElemOp.getIndexingMapsArray().front(),
-                        maybeElemOp.getIndexingMapsArray().back()
-                    },
-                    /*iteratorTypes=*/maybeElemOp.getIteratorTypesArray(),
-                    [&](OpBuilder &bBuilder, Location bLoc, ValueRange bArgs) {
-                        bBuilder.create<linalg::YieldOp>(bLoc, bArgs[0]);
-                    }
-                );
+                auto newOp = linalg::GenericOp::create(rewriter, loc, ArrayRef<Type>{newOutputType}, ValueRange{input}, ValueRange{emptyOp},
+                /*indexingMaps=*/
+                ArrayRef<AffineMap>{
+                    maybeElemOp.getIndexingMapsArray().front(),
+                    maybeElemOp.getIndexingMapsArray().back()
+                },
+                /*iteratorTypes=*/maybeElemOp.getIteratorTypesArray(),
+                [&](OpBuilder &bBuilder, Location bLoc, ValueRange bArgs) {
+                    linalg::YieldOp::create(bBuilder, bLoc, bArgs[0]);
+                });
 
                 return newOp;
             };
@@ -204,9 +200,7 @@ struct EltwiseBinaryConvert : public OpRewritePattern<linalg::GenericOp> {
             auto collapseShape = collapseOp.getResultType().getShape();
             auto newOutputType = RankedTensorType::get(collapseShape, inputElementType);
 
-            auto newCollapseOp = rewriter.create<tensor::CollapseShapeOp>(
-                collapseOp.getLoc(), newOutputType, input, collapseOp.getReassociationIndices()
-            );
+            auto newCollapseOp = tensor::CollapseShapeOp::create(rewriter, collapseOp.getLoc(), newOutputType, input, collapseOp.getReassociationIndices());
             collapseOp->getResult(0).replaceAllUsesWith(newCollapseOp.getResult());
             rewriter.eraseOp(collapseOp);
             input = newCollapseOp.getResult();
@@ -217,9 +211,7 @@ struct EltwiseBinaryConvert : public OpRewritePattern<linalg::GenericOp> {
             auto expandShape = expandOp.getResultType().getShape();
             auto newOutputType = RankedTensorType::get(expandShape, inputElementType);
 
-            auto newExpandOp = rewriter.create<tensor::ExpandShapeOp>(
-                expandOp.getLoc(), newOutputType, input, expandOp.getReassociationIndices()
-            );
+            auto newExpandOp = tensor::ExpandShapeOp::create(rewriter, expandOp.getLoc(), newOutputType, input, expandOp.getReassociationIndices());
             expandOp->getResult(0).replaceAllUsesWith(newExpandOp.getResult());
             rewriter.eraseOp(expandOp);
             input = newExpandOp.getResult();
@@ -232,9 +224,7 @@ struct EltwiseBinaryConvert : public OpRewritePattern<linalg::GenericOp> {
             auto bOutputShape = mlir::cast<RankedTensorType>(dstTy).getShape();
             auto bOutputType = RankedTensorType::get(bOutputShape, inputElementType);
 
-            auto op = rewriter.create<linalg::BroadcastOp>(
-                bcastOp.getLoc(), src, createInitTensor(bcastOp, rewriter, bOutputType), *bcastDims
-            );
+            auto op = linalg::BroadcastOp::create(rewriter, bcastOp.getLoc(), src, createInitTensor(bcastOp, rewriter, bOutputType), *bcastDims);
             auto gOp = linalg::generalizeNamedOp(rewriter, op);
             rewriter.replaceOp(bcastOp, gOp->getResults()[0]);
 
@@ -401,11 +391,9 @@ struct EltwiseBinaryConvert : public OpRewritePattern<linalg::GenericOp> {
 
         // Generate torq_hl op with output in the expected format
         auto torqOutType = transposeType(output.getType(), dataPerm);
-        auto torqOp = rewriter.create<TorqEltOp>(
-            loc, torqOutType, createInitTensor(eltOp, rewriter, torqOutType), opName,
-            /* input zp not needed */ 0, scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift,
-            torqWeights, biasScale, input0, input1
-        );
+        auto torqOp = TorqEltOp::create(rewriter, loc, torqOutType, createInitTensor(eltOp, rewriter, torqOutType), opName,
+        /* input zp not needed */ 0, scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift,
+        torqWeights, biasScale, input0, input1);
         auto torqOut = transposeValue(torqOp.getOutput(), dataPerm.reverse(), loc, rewriter);
 
         rewriter.replaceOp(output.getDefiningOp(), torqOut);
@@ -496,11 +484,9 @@ struct PoolingConvert : public OpRewritePattern<linalg::PoolingNhwcSumOp> {
 
         // Generate torq_hl op with output in the expected format
         auto torqOutType = transposeType(output.getType(), dataPerm);
-        auto torqOp = rewriter.create<TorqOp>(
-            linalgOp.getLoc(), torqOutType, createInitTensor(linalgOp, rewriter, torqOutType),
-            scInfo.zp, scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift, weights, biasScale,
-            input0
-        );
+        auto torqOp = TorqOp::create(rewriter, linalgOp.getLoc(), torqOutType, createInitTensor(linalgOp, rewriter, torqOutType),
+        scInfo.zp, scInfo.zp, scInfo.min, scInfo.max, scInfo.scaleShift, weights, biasScale,
+        input0);
         auto torqOut = transposeValue(torqOp.getOutput(), dataPerm.reverse(), loc, rewriter);
 
         rewriter.replaceOp(output.getDefiningOp(), torqOut);
@@ -708,17 +694,13 @@ struct ReduceMeanConvert : public OpRewritePattern<linalg::GenericOp> {
         if (rank == 2) {
             auto s = inputType.getShape();
             auto nchwType = RankedTensorType::get({1, 1, s[0], s[1]}, inputType.getElementType());
-            inputNCHW = rewriter.create<tensor::ExpandShapeOp>(
-                loc, nchwType, input, SmallVector<ReassociationIndices>{{0, 1, 2}, {3}}
-            );
+            inputNCHW = tensor::ExpandShapeOp::create(rewriter, loc, nchwType, input, SmallVector<ReassociationIndices>{{0, 1, 2}, {3}});
         }
         else if (rank == 3) {
             auto s = inputType.getShape();
             auto nchwType =
                 RankedTensorType::get({s[0], 1, s[1], s[2]}, inputType.getElementType());
-            inputNCHW = rewriter.create<tensor::ExpandShapeOp>(
-                loc, nchwType, input, SmallVector<ReassociationIndices>{{0}, {1, 2}, {3}}
-            );
+            inputNCHW = tensor::ExpandShapeOp::create(rewriter, loc, nchwType, input, SmallVector<ReassociationIndices>{{0}, {1, 2}, {3}});
         }
         else if (rank != 4)
             return rewriter.notifyMatchFailure(meanOp, "Only rank 2-4 supported");
@@ -754,24 +736,18 @@ struct ReduceMeanConvert : public OpRewritePattern<linalg::GenericOp> {
         float max_f = std::numeric_limits<float>::max();
         int32_t output_max = *reinterpret_cast<int32_t *>(&max_f);
 
-        auto reduceMeanOp = rewriter.create<torq_hl::ReduceMeanOp>(
-            loc, reduceMeanOutType, createInitTensor(meanOp, rewriter, reduceMeanOutType), 0, 0,
-            output_min, output_max,                // input_zp=0, output_zp=0, min, max
-            0, weights, biasScale, reduceMeanInput // shift_factor=0 for bf16
-        );
+        auto reduceMeanOp = torq_hl::ReduceMeanOp::create(rewriter, loc, reduceMeanOutType, createInitTensor(meanOp, rewriter, reduceMeanOutType), 0, 0,
+        output_min, output_max,                // input_zp=0, output_zp=0, min, max
+        0, weights, biasScale, reduceMeanInput // shift_factor=0 for bf16);
 
         // Undo H↔W transpose if it was applied (restore original axis positions)
         Value out = reduceMeanOp.getOutput();
         if (needsPreTranspose)
             out = transposeValue(out, Permutation({0, 1, 3, 2}), loc, rewriter);
         if (rank == 2)
-            out = rewriter.create<tensor::CollapseShapeOp>(
-                loc, resultType, out, SmallVector<ReassociationIndices>{{0, 1, 2, 3}}
-            );
+            out = tensor::CollapseShapeOp::create(rewriter, loc, resultType, out, SmallVector<ReassociationIndices>{{0, 1, 2, 3}});
         else if (rank == 3)
-            out = rewriter.create<tensor::CollapseShapeOp>(
-                loc, resultType, out, SmallVector<ReassociationIndices>{{0}, {1, 2, 3}}
-            );
+            out = tensor::CollapseShapeOp::create(rewriter, loc, resultType, out, SmallVector<ReassociationIndices>{{0}, {1, 2, 3}});
 
         rewriter.replaceOp(meanOp, out);
         return success();
@@ -789,9 +765,7 @@ Value getSpaceToDepth(Value input, int sh, int sw, PatternRewriter &rewriter) {
     // Map: [0]->[0], [1]->[1], [2]->[2,3], [3]->[4,5]
     SmallVector<int64_t, 6> expandedShape = {n, c, h / sh, sh, w / sw, sw};
     auto expandedType = RankedTensorType::get(expandedShape, elementType);
-    Value expanded = rewriter.create<tensor::ExpandShapeOp>(
-        loc, expandedType, input, ArrayRef<ReassociationIndices>{{0}, {1}, {2, 3}, {4, 5}}
-    );
+    Value expanded = tensor::ExpandShapeOp::create(rewriter, loc, expandedType, input, ArrayRef<ReassociationIndices>{{0}, {1}, {2, 3}, {4, 5}});
 
     // Transpose to [n, c, sh, sw, h/sh, w/sw]
     const SmallVector<int64_t, 6> perm = {0, 1, 3, 5, 2, 4};
@@ -799,9 +773,7 @@ Value getSpaceToDepth(Value input, int sh, int sw, PatternRewriter &rewriter) {
 
     // Collapse [n, c, sh, sw, h/sh, w/sw] to [n, c*sh*sw, h/sh, w/sw]
     auto outType = RankedTensorType::get({n, c * sh * sw, h / sh, w / sw}, elementType);
-    Value out = rewriter.create<tensor::CollapseShapeOp>(
-        loc, outType, transposed, ArrayRef<ReassociationIndices>{{0}, {1, 2, 3}, {4}, {5}}
-    );
+    Value out = tensor::CollapseShapeOp::create(rewriter, loc, outType, transposed, ArrayRef<ReassociationIndices>{{0}, {1, 2, 3}, {4}, {5}});
 
     return out;
 }
@@ -865,7 +837,7 @@ struct Conv2DOpBigStride : public OpRewritePattern<syna::torq_hl::Conv2DOp> {
             weightElementType
         );
         auto newWeightAttr = DenseElementsAttr::get(newWeightType, convWeights.getRawData());
-        auto torqWeights = rewriter.create<arith::ConstantOp>(loc, newWeightType, newWeightAttr);
+        auto torqWeights = arith::ConstantOp::create(rewriter, loc, newWeightType, newWeightAttr);
 
         // Update conv2d
         rewriter.modifyOpInPlace(op, [&]() {

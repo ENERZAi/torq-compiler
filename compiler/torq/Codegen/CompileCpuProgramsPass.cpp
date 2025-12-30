@@ -596,9 +596,7 @@ LogicalResult CompileCpuProgramsPass::compileAndLink(IREE::HAL::ExecutableVarian
 
     OpBuilder builder(variantOp);
 
-    builder.create<IREE::HAL::ExecutableBinaryOp>(
-        variantOp.getLoc(), "code", hostBuild ? "host" : "css", codeVec
-    );
+    IREE::HAL::ExecutableBinaryOp::create(builder, variantOp.getLoc(), "code", hostBuild ? "host" : "css", codeVec);
 
     variantOp.erase();
 

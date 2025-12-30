@@ -156,7 +156,7 @@ void AddDeallocationPass::runOnOperation() {
     for (auto alloc : allocations) {
         auto user = lastAllocationUser.at(alloc);
         builder.setInsertionPointAfter(user);
-        builder.create<memref::DeallocOp>(user->getLoc(), alloc);
+        memref::DeallocOp::create(builder, user->getLoc(), alloc);
     }
 }
 

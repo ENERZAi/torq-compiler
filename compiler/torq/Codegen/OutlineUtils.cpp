@@ -157,7 +157,7 @@ static void copyToProgramBody(
         returnValues.push_back(map.lookup(output));
     }
 
-    builder.create<torq_hl::ReturnOp>(programOp.getLoc(), returnValues);
+    torq_hl::ReturnOp::create(builder, programOp.getLoc(), returnValues);
 }
 
 static int64_t getProgramSize(torq_hl::ProgramOp programOp) {
@@ -241,7 +241,7 @@ FailureOr<OutliningResults> outlineProgram(
     // create a new program that will contain the outlined operations
     auto programType = torq_hl::ProgramType::get(builder.getContext(), executor);
     auto programOp =
-        builder.create<torq_hl::ProgramOp>(loc, programType, builder.getStringAttr(name));
+        torq_hl::ProgramOp::create(builder, loc, programType, builder.getStringAttr(name));
     programOp.getBody().emplaceBlock();
 
     // copy the operations into the function body

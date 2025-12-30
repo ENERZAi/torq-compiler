@@ -108,9 +108,7 @@ class AddMulPattern : public OpConversionPattern<linalg::GenericOp> {
 
         // the indexing map of Q is the same as P
         // the initial value of Q is an empty tensor, it will be overwritten with the Q output
-        auto emptyOp = rewriter.create<tensor::EmptyOp>(
-            genericOp.getLoc(), initOperand.getType(), ValueRange{}
-        );
+        auto emptyOp = tensor::EmptyOp::create(rewriter, genericOp.getLoc(), initOperand.getType(), ValueRange{});
         params.q =
             torq_hl::GenericOpParam(emptyOp, genericOp.getMatchingIndexingMap(initOpOperand));
 
@@ -152,7 +150,7 @@ class AddMulPattern : public OpConversionPattern<linalg::GenericOp> {
             rewriter.getContext(), torq_hl::ALUOp0Mode::MUL, torq_hl::ALUOp1Mode::ACC
         );
 
-        auto newOp = rewriter.create<torq_hl::GenericOp>(genericOp.getLoc(), params);
+        auto newOp = torq_hl::GenericOp::create(rewriter, genericOp.getLoc(), params);
 
         rewriter.replaceOp(genericOp, newOp.getResult(1));
 
@@ -235,9 +233,7 @@ class ReduceSumPattern : public OpConversionPattern<linalg::GenericOp> {
 
         // the indexing map of Q is the same as P
         // the initial value of Q is an empty tensor, it will be overwritten with the Q output
-        auto emptyOp = rewriter.create<tensor::EmptyOp>(
-            genericOp.getLoc(), initOperand.getType(), ValueRange{}
-        );
+        auto emptyOp = tensor::EmptyOp::create(rewriter, genericOp.getLoc(), initOperand.getType(), ValueRange{});
         params.q =
             torq_hl::GenericOpParam(emptyOp, genericOp.getMatchingIndexingMap(initOpOperand));
 
@@ -265,7 +261,7 @@ class ReduceSumPattern : public OpConversionPattern<linalg::GenericOp> {
             rewriter.getContext(), torq_hl::ALUOp0Mode::DBYP, torq_hl::ALUOp1Mode::ACC
         );
 
-        auto newOp = rewriter.create<torq_hl::GenericOp>(genericOp.getLoc(), params);
+        auto newOp = torq_hl::GenericOp::create(rewriter, genericOp.getLoc(), params);
 
         rewriter.replaceOp(genericOp, newOp.getResult(1));
 
@@ -343,9 +339,7 @@ class MemCopyPattern : public OpConversionPattern<linalg::GenericOp> {
             return failure();
         }
 
-        auto emptyOp = rewriter.create<tensor::EmptyOp>(
-            genericOp.getLoc(), initOperand.getType(), ValueRange{}
-        );
+        auto emptyOp = tensor::EmptyOp::create(rewriter, genericOp.getLoc(), initOperand.getType(), ValueRange{});
 
         auto initOpOperand = genericOp.getDpsInitOperand(0);
 
@@ -359,7 +353,7 @@ class MemCopyPattern : public OpConversionPattern<linalg::GenericOp> {
         if (!isa<RankedTensorType>(params.d.value().getType())) {
 
             auto tensorOp =
-                rewriter.create<tensor::FromElementsOp>(genericOp.getLoc(), params.d.value());
+                tensor::FromElementsOp::create(rewriter, genericOp.getLoc(), params.d.value());
 
             // int64_t rank = tensorOp.getType().getRank();
             auto tensorMap = AffineMap::get(1, 0, getAffineConstantExpr(0, rewriter.getContext()));
@@ -375,7 +369,7 @@ class MemCopyPattern : public OpConversionPattern<linalg::GenericOp> {
             genericOp.getContext(), torq_hl::ALUOp0Mode::DBYP, torq_hl::ALUOp1Mode::ACC
         );
 
-        auto newOp = rewriter.create<torq_hl::GenericOp>(genericOp.getLoc(), params);
+        auto newOp = torq_hl::GenericOp::create(rewriter, genericOp.getLoc(), params);
 
         rewriter.replaceOp(genericOp, newOp.getResult(1));
 

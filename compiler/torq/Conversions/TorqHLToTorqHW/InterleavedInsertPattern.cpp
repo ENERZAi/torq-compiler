@@ -111,10 +111,8 @@ lowerToHw(torq_hl::InterleavedInsertOp op, PatternRewriter &rewriter, Value task
         }
     }
 
-    return rewriter.create<torq_hw::SliceTaskOp>(
-        op.getLoc(), slice.name(), op.getInput(), op.getWeights(), Value(), taskInitTensor,
-        slice.getCfgAttr(rewriter.getContext()), slice.getNdls()
-    );
+    return torq_hw::SliceTaskOp::create(rewriter, op.getLoc(), slice.name(), op.getInput(), op.getWeights(), Value(), taskInitTensor,
+    slice.getCfgAttr(rewriter.getContext()), slice.getNdls());
 }
 
 template <>

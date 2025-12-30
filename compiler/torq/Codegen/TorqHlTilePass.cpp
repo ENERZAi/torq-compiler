@@ -126,7 +126,7 @@ class Conv1DPattern : public OpRewritePattern<torq_hl::Conv1DOp> {
         auto inTileSizes = createVector({inShape[0], inShape[1], inShape[2], inShape[3]}, rewriter);
 
         Value outputTensor =
-            rewriter.create<tensor::EmptyOp>(convOp.getLoc(), outShape, outType.getElementType());
+            tensor::EmptyOp::create(rewriter, convOp.getLoc(), outShape, outType.getElementType());
 
         int outPaddingLines = (kernelHeight - 1) / 2;
         int inPaddingLines = outPaddingLines;
@@ -150,21 +150,17 @@ class Conv1DPattern : public OpRewritePattern<torq_hl::Conv1DOp> {
                 {outShape[0], channelCount, outShape[2], outShape[3], outShape[4]}, rewriter
             );
 
-            auto tiledWeights = rewriter.create<tensor::ExtractSliceOp>(
-                convOp.getLoc(), convOp.getWeights(),
-                createVector({i * maxChannelsPerTile, 0, 0, 0}, rewriter),
-                createVector(
-                    {channelCount, weightsShape[1], weightsShape[2], weightsShape[3]}, rewriter
-                ),
-                createVector({1, 1, 1, 1}, rewriter)
-            );
+            auto tiledWeights = tensor::ExtractSliceOp::create(rewriter, convOp.getLoc(), convOp.getWeights(),
+            createVector({i * maxChannelsPerTile, 0, 0, 0}, rewriter),
+            createVector(
+                {channelCount, weightsShape[1], weightsShape[2], weightsShape[3]}, rewriter
+            ),
+            createVector({1, 1, 1, 1}, rewriter));
 
             int scaleBiasItems = outType.getElementType().isInteger() ? 2 : 1;
-            auto tiledScaleBias = rewriter.create<tensor::ExtractSliceOp>(
-                convOp.getLoc(), convOp.getScaleBias(),
-                createVector({scaleBiasItems * i * maxChannelsPerTile}, rewriter),
-                createVector({channelCount * scaleBiasItems}, rewriter), createVector({1}, rewriter)
-            );
+            auto tiledScaleBias = tensor::ExtractSliceOp::create(rewriter, convOp.getLoc(), convOp.getScaleBias(),
+            createVector({scaleBiasItems * i * maxChannelsPerTile}, rewriter),
+            createVector({channelCount * scaleBiasItems}, rewriter), createVector({1}, rewriter));
 
             int remainingOutStripes = outShape[2] % outStripesCount;
 
@@ -207,30 +203,22 @@ class Conv1DPattern : public OpRewritePattern<torq_hl::Conv1DOp> {
 
                 Value inputTile;
                 if (segmentationOp) {
-                    auto segmentationInputTile = rewriter.create<tensor::ExtractSliceOp>(
-                        convOp.getLoc(), segmentationOp.getInput(), inStripeOffsets, inStripeSizes,
-                        tileStrides
-                    );
+                    auto segmentationInputTile = tensor::ExtractSliceOp::create(rewriter, convOp.getLoc(), segmentationOp.getInput(), inStripeOffsets, inStripeSizes,
+                    tileStrides);
                     auto segmentedType = segmentationInputTile.getType();
 
-                    auto segmentationInitTile = rewriter.create<tensor::EmptyOp>(
-                        convOp.getLoc(), segmentedType.getShape(), segmentedType.getElementType()
-                    );
+                    auto segmentationInitTile = tensor::EmptyOp::create(rewriter, convOp.getLoc(), segmentedType.getShape(), segmentedType.getElementType());
 
-                    auto inputTileOp = rewriter.create<torq_hl::SegmentationOp>(
-                        segmentationOp.getLoc(), segmentationInputTile.getType(),
-                        segmentationInitTile.getResult(), segmentationOp.getInputZp(),
-                        segmentationOp.getOutputZp(), segmentationOp.getOutputMin(),
-                        segmentationOp.getOutputMax(), segmentationOp.getWeights(),
-                        segmentationOp.getScaleBias(), segmentationInputTile
-                    );
+                    auto inputTileOp = torq_hl::SegmentationOp::create(rewriter, segmentationOp.getLoc(), segmentationInputTile.getType(),
+                    segmentationInitTile.getResult(), segmentationOp.getInputZp(),
+                    segmentationOp.getOutputZp(), segmentationOp.getOutputMin(),
+                    segmentationOp.getOutputMax(), segmentationOp.getWeights(),
+                    segmentationOp.getScaleBias(), segmentationInputTile);
                     inputTile = inputTileOp.getOutput();
                 }
                 else {
-                    auto inputTileOp = rewriter.create<tensor::ExtractSliceOp>(
-                        convOp.getLoc(), convOp.getInput(), inStripeOffsets, inStripeSizes,
-                        tileStrides
-                    );
+                    auto inputTileOp = tensor::ExtractSliceOp::create(rewriter, convOp.getLoc(), convOp.getInput(), inStripeOffsets, inStripeSizes,
+                    tileStrides);
                     inputTile = inputTileOp.getResult();
                 }
 
@@ -242,18 +230,14 @@ class Conv1DPattern : public OpRewritePattern<torq_hl::Conv1DOp> {
                 // Create the init vector as empty tensor.
                 // This generates a simpler dependency graph than taking a subview of the original
                 // init tensor and allows the optimization steps to remove redundand copyOp
-                auto initTile = rewriter.create<tensor::EmptyOp>(
-                    convOp.getLoc(), tileType.getShape(), tileType.getElementType()
-                );
+                auto initTile = tensor::EmptyOp::create(rewriter, convOp.getLoc(), tileType.getShape(), tileType.getElementType());
 
                 const int32_t groups = 1;
-                auto outputTileWithPad = rewriter.create<torq_hl::Conv1DOp>(
-                    convOp.getLoc(), tileType, initTile.getResult(), convOp.getInputZp(),
-                    convOp.getWeightZp(), convOp.getOutputZp(), convOp.getOutputMin(),
-                    convOp.getOutputMax(), convOp.getShiftFactor(), groups, convOp.getPad(),
-                    convOp.getStride(), convOp.getDilation(), convOp.getVectorizationMode(),
-                    tiledWeights.getResult(), tiledScaleBias.getResult(), inputTile
-                );
+                auto outputTileWithPad = torq_hl::Conv1DOp::create(rewriter, convOp.getLoc(), tileType, initTile.getResult(), convOp.getInputZp(),
+                convOp.getWeightZp(), convOp.getOutputZp(), convOp.getOutputMin(),
+                convOp.getOutputMax(), convOp.getShiftFactor(), groups, convOp.getPad(),
+                convOp.getStride(), convOp.getDilation(), convOp.getVectorizationMode(),
+                tiledWeights.getResult(), tiledScaleBias.getResult(), inputTile);
 
                 if (convOp.getSegmentOutput()) {
                     outputTileWithPad->setAttr(
@@ -265,19 +249,14 @@ class Conv1DPattern : public OpRewritePattern<torq_hl::Conv1DOp> {
                 auto lramOutStripeSizes = outStripeSizes;
                 lramOutStripeSizes[2] =
                     rewriter.getIndexAttr(currentOutStripeHeight - outPadTop - outPadBottom);
-                auto outputTile = rewriter.create<tensor::ExtractSliceOp>(
-                    convOp.getLoc(), outputTileWithPad.getOutput(), lramOutStripeOffsets,
-                    lramOutStripeSizes, outTileStrides
-                );
+                auto outputTile = tensor::ExtractSliceOp::create(rewriter, convOp.getLoc(), outputTileWithPad.getOutput(), lramOutStripeOffsets,
+                lramOutStripeSizes, outTileStrides);
 
                 outStripeOffsets[2] = rewriter.getIndexAttr(s * fixedOutStripeHeight);
                 outStripeSizes[2] =
                     rewriter.getIndexAttr(currentOutStripeHeight - outPadTop - outPadBottom);
-                outputTensor = rewriter
-                                   .create<tensor::InsertSliceOp>(
-                                       convOp.getLoc(), outputTile.getResult(), outputTensor,
-                                       outStripeOffsets, outStripeSizes, outTileStrides
-                                   )
+                outputTensor = tensor::InsertSliceOp::create(rewriter, convOp.getLoc(), outputTile.getResult(), outputTensor,
+                outStripeOffsets, outStripeSizes, outTileStrides)
                                    .getResult();
             }
         }
@@ -379,7 +358,7 @@ class Conv2DPattern : public OpRewritePattern<torq_hl::Conv2DOp> {
         auto inTileSizes = createVector({inShape[0], inShape[1], inShape[2], inShape[3]}, rewriter);
 
         Value outputTensor =
-            rewriter.create<tensor::EmptyOp>(convOp.getLoc(), outShape, outType.getElementType());
+            tensor::EmptyOp::create(rewriter, convOp.getLoc(), outShape, outType.getElementType());
 
         int outPaddingLines = (kernelHeight - 1) / 2;
         int inPaddingLines = outPaddingLines;
@@ -401,21 +380,17 @@ class Conv2DPattern : public OpRewritePattern<torq_hl::Conv2DOp> {
             auto outTileSizes =
                 createVector({outShape[0], channelCount, outShape[2], outShape[3]}, rewriter);
 
-            auto tiledWeights = rewriter.create<tensor::ExtractSliceOp>(
-                convOp.getLoc(), convOp.getWeights(),
-                createVector({i * maxChannelsPerTile, 0, 0, 0}, rewriter),
-                createVector(
-                    {channelCount, weightsShape[1], weightsShape[2], weightsShape[3]}, rewriter
-                ),
-                createVector({1, 1, 1, 1}, rewriter)
-            );
+            auto tiledWeights = tensor::ExtractSliceOp::create(rewriter, convOp.getLoc(), convOp.getWeights(),
+            createVector({i * maxChannelsPerTile, 0, 0, 0}, rewriter),
+            createVector(
+                {channelCount, weightsShape[1], weightsShape[2], weightsShape[3]}, rewriter
+            ),
+            createVector({1, 1, 1, 1}, rewriter));
 
             int scaleBiasItems = outType.getElementType().isInteger() ? 2 : 1;
-            auto tiledScaleBias = rewriter.create<tensor::ExtractSliceOp>(
-                convOp.getLoc(), convOp.getScaleBias(),
-                createVector({scaleBiasItems * i * maxChannelsPerTile}, rewriter),
-                createVector({channelCount * scaleBiasItems}, rewriter), createVector({1}, rewriter)
-            );
+            auto tiledScaleBias = tensor::ExtractSliceOp::create(rewriter, convOp.getLoc(), convOp.getScaleBias(),
+            createVector({scaleBiasItems * i * maxChannelsPerTile}, rewriter),
+            createVector({channelCount * scaleBiasItems}, rewriter), createVector({1}, rewriter));
 
             int remainingOutStripes = outShape[2] % outStripesCount;
 
@@ -458,30 +433,22 @@ class Conv2DPattern : public OpRewritePattern<torq_hl::Conv2DOp> {
 
                 Value inputTile;
                 if (segmentationOp) {
-                    auto segmentationInputTile = rewriter.create<tensor::ExtractSliceOp>(
-                        convOp.getLoc(), segmentationOp.getInput(), inStripeOffsets, inStripeSizes,
-                        tileStrides
-                    );
+                    auto segmentationInputTile = tensor::ExtractSliceOp::create(rewriter, convOp.getLoc(), segmentationOp.getInput(), inStripeOffsets, inStripeSizes,
+                    tileStrides);
                     auto segmentedType = segmentationInputTile.getType();
 
-                    auto segmentationInitTile = rewriter.create<tensor::EmptyOp>(
-                        convOp.getLoc(), segmentedType.getShape(), segmentedType.getElementType()
-                    );
+                    auto segmentationInitTile = tensor::EmptyOp::create(rewriter, convOp.getLoc(), segmentedType.getShape(), segmentedType.getElementType());
 
-                    auto inputTileOp = rewriter.create<torq_hl::SegmentationOp>(
-                        segmentationOp.getLoc(), segmentationInputTile.getType(),
-                        segmentationInitTile.getResult(), segmentationOp.getInputZp(),
-                        segmentationOp.getOutputZp(), segmentationOp.getOutputMin(),
-                        segmentationOp.getOutputMax(), segmentationOp.getWeights(),
-                        segmentationOp.getScaleBias(), segmentationInputTile
-                    );
+                    auto inputTileOp = torq_hl::SegmentationOp::create(rewriter, segmentationOp.getLoc(), segmentationInputTile.getType(),
+                    segmentationInitTile.getResult(), segmentationOp.getInputZp(),
+                    segmentationOp.getOutputZp(), segmentationOp.getOutputMin(),
+                    segmentationOp.getOutputMax(), segmentationOp.getWeights(),
+                    segmentationOp.getScaleBias(), segmentationInputTile);
                     inputTile = inputTileOp.getOutput();
                 }
                 else {
-                    auto inputTileOp = rewriter.create<tensor::ExtractSliceOp>(
-                        convOp.getLoc(), convOp.getInput(), inStripeOffsets, inStripeSizes,
-                        tileStrides
-                    );
+                    auto inputTileOp = tensor::ExtractSliceOp::create(rewriter, convOp.getLoc(), convOp.getInput(), inStripeOffsets, inStripeSizes,
+                    tileStrides);
                     inputTile = inputTileOp.getResult();
                 }
 
@@ -493,18 +460,14 @@ class Conv2DPattern : public OpRewritePattern<torq_hl::Conv2DOp> {
                 // Create the init vector as empty tensor.
                 // This generates a simpler dependency graph than taking a subview of the original
                 // init tensor and allows the optimization steps to remove redundand copyOp
-                auto initTile = rewriter.create<tensor::EmptyOp>(
-                    convOp.getLoc(), tileType.getShape(), tileType.getElementType()
-                );
+                auto initTile = tensor::EmptyOp::create(rewriter, convOp.getLoc(), tileType.getShape(), tileType.getElementType());
 
                 const int32_t groups = 1;
-                auto outputTileWithPad = rewriter.create<torq_hl::Conv2DOp>(
-                    convOp.getLoc(), tileType, initTile.getResult(), convOp.getInputZp(),
-                    convOp.getWeightZp(), convOp.getOutputZp(), convOp.getOutputMin(),
-                    convOp.getOutputMax(), convOp.getShiftFactor(), groups, convOp.getPad(),
-                    convOp.getStride(), convOp.getDilation(), convOp.getVectorizationMode(),
-                    tiledWeights.getResult(), tiledScaleBias.getResult(), inputTile
-                );
+                auto outputTileWithPad = torq_hl::Conv2DOp::create(rewriter, convOp.getLoc(), tileType, initTile.getResult(), convOp.getInputZp(),
+                convOp.getWeightZp(), convOp.getOutputZp(), convOp.getOutputMin(),
+                convOp.getOutputMax(), convOp.getShiftFactor(), groups, convOp.getPad(),
+                convOp.getStride(), convOp.getDilation(), convOp.getVectorizationMode(),
+                tiledWeights.getResult(), tiledScaleBias.getResult(), inputTile);
 
                 if (convOp.getSegmentOutput()) {
                     outputTileWithPad->setAttr(
@@ -516,19 +479,14 @@ class Conv2DPattern : public OpRewritePattern<torq_hl::Conv2DOp> {
                 auto lramOutStripeSizes = outStripeSizes;
                 lramOutStripeSizes[2] =
                     rewriter.getIndexAttr(currentOutStripeHeight - outPadTop - outPadBottom);
-                auto outputTile = rewriter.create<tensor::ExtractSliceOp>(
-                    convOp.getLoc(), outputTileWithPad.getOutput(), lramOutStripeOffsets,
-                    lramOutStripeSizes, tileStrides
-                );
+                auto outputTile = tensor::ExtractSliceOp::create(rewriter, convOp.getLoc(), outputTileWithPad.getOutput(), lramOutStripeOffsets,
+                lramOutStripeSizes, tileStrides);
 
                 outStripeOffsets[2] = rewriter.getIndexAttr(s * fixedOutStripeHeight);
                 outStripeSizes[2] =
                     rewriter.getIndexAttr(currentOutStripeHeight - outPadTop - outPadBottom);
-                outputTensor = rewriter
-                                   .create<tensor::InsertSliceOp>(
-                                       convOp.getLoc(), outputTile.getResult(), outputTensor,
-                                       outStripeOffsets, outStripeSizes, tileStrides
-                                   )
+                outputTensor = tensor::InsertSliceOp::create(rewriter, convOp.getLoc(), outputTile.getResult(), outputTensor,
+                outStripeOffsets, outStripeSizes, tileStrides)
                                    .getResult();
             }
         }
@@ -610,7 +568,7 @@ class DepthWise2DPattern : public OpRewritePattern<torq_hl::DepthwiseConv2DOp> {
         auto inShape = dwOp.getInput().getType().getShape();
 
         Value outputTensor =
-            rewriter.create<tensor::EmptyOp>(dwOp.getLoc(), outShape, outType.getElementType());
+            tensor::EmptyOp::create(rewriter, dwOp.getLoc(), outShape, outType.getElementType());
 
         for (int i = 0; i < totalTiles; i++) {
             int channelCount = maxChannelsPerTile;
@@ -632,29 +590,20 @@ class DepthWise2DPattern : public OpRewritePattern<torq_hl::DepthwiseConv2DOp> {
 
             if (segmentationOp) {
 
-                auto segmentationInputTile = rewriter.create<tensor::ExtractSliceOp>(
-                    dwOp.getLoc(), segmentationOp.getInput(), tileOffsets, inTileSizes, tileStrides
-                );
+                auto segmentationInputTile = tensor::ExtractSliceOp::create(rewriter, dwOp.getLoc(), segmentationOp.getInput(), tileOffsets, inTileSizes, tileStrides);
 
                 auto segmentedType = segmentationInputTile.getType();
-                auto segmentationInitTile = rewriter.create<tensor::EmptyOp>(
-                    dwOp.getLoc(), segmentedType.getShape(), segmentedType.getElementType()
-                );
+                auto segmentationInitTile = tensor::EmptyOp::create(rewriter, dwOp.getLoc(), segmentedType.getShape(), segmentedType.getElementType());
 
-                inputTile = rewriter
-                                .create<torq_hl::SegmentationOp>(
-                                    segmentationOp.getLoc(), segmentationInputTile.getType(),
-                                    segmentationInitTile.getResult(), segmentationOp.getInputZp(),
-                                    segmentationOp.getOutputZp(), segmentationOp.getOutputMin(),
-                                    segmentationOp.getOutputMax(), segmentationOp.getWeights(),
-                                    segmentationOp.getScaleBias(), segmentationInputTile
-                                )
+                inputTile = torq_hl::SegmentationOp::create(rewriter, segmentationOp.getLoc(), segmentationInputTile.getType(),
+                segmentationInitTile.getResult(), segmentationOp.getInputZp(),
+                segmentationOp.getOutputZp(), segmentationOp.getOutputMin(),
+                segmentationOp.getOutputMax(), segmentationOp.getWeights(),
+                segmentationOp.getScaleBias(), segmentationInputTile)
                                 .getOutput();
             }
             else {
-                inputTile = rewriter.create<tensor::ExtractSliceOp>(
-                    dwOp.getLoc(), dwOp.getInput(), tileOffsets, inTileSizes, tileStrides
-                );
+                inputTile = tensor::ExtractSliceOp::create(rewriter, dwOp.getLoc(), dwOp.getInput(), tileOffsets, inTileSizes, tileStrides);
             }
 
             auto tileType = RankedTensorType::get(
@@ -664,9 +613,7 @@ class DepthWise2DPattern : public OpRewritePattern<torq_hl::DepthwiseConv2DOp> {
             // Create the init vector as empty tensor.
             // This generates a simpler dependency graph than taking a subview of the original
             // init tensor and allows the optimization steps to remove redundand copyOp
-            auto initTile = rewriter.create<tensor::EmptyOp>(
-                dwOp.getLoc(), tileType.getShape(), tileType.getElementType()
-            );
+            auto initTile = tensor::EmptyOp::create(rewriter, dwOp.getLoc(), tileType.getShape(), tileType.getElementType());
 
             auto weightsShape = dwOp.getWeights().getType().getShape();
 
@@ -681,25 +628,19 @@ class DepthWise2DPattern : public OpRewritePattern<torq_hl::DepthwiseConv2DOp> {
                     : SmallVector<int64_t>({channelCount, weightsShape[1], weightsShape[2]});
             SmallVector<int64_t> weightStrideValues(weightsShape.size(), 1);
 
-            auto tiledWeights = rewriter.create<tensor::ExtractSliceOp>(
-                dwOp.getLoc(), dwOp.getWeights(), createVector(weightOffsetValues, rewriter),
-                createVector(weightSizeValues, rewriter), createVector(weightStrideValues, rewriter)
-            );
+            auto tiledWeights = tensor::ExtractSliceOp::create(rewriter, dwOp.getLoc(), dwOp.getWeights(), createVector(weightOffsetValues, rewriter),
+            createVector(weightSizeValues, rewriter), createVector(weightStrideValues, rewriter));
 
             int scaleBiasItems = outType.getElementType().isInteger() ? 2 : 1;
-            auto tiledScaleBias = rewriter.create<tensor::ExtractSliceOp>(
-                dwOp.getLoc(), dwOp.getScaleBias(),
-                createVector({scaleBiasItems * i * maxChannelsPerTile}, rewriter),
-                createVector({channelCount * scaleBiasItems}, rewriter), createVector({1}, rewriter)
-            );
+            auto tiledScaleBias = tensor::ExtractSliceOp::create(rewriter, dwOp.getLoc(), dwOp.getScaleBias(),
+            createVector({scaleBiasItems * i * maxChannelsPerTile}, rewriter),
+            createVector({channelCount * scaleBiasItems}, rewriter), createVector({1}, rewriter));
 
-            auto outputTile = rewriter.create<torq_hl::DepthwiseConv2DOp>(
-                dwOp.getLoc(), tileType, initTile.getResult(), dwOp.getInputZp(),
-                dwOp.getWeightZp(), dwOp.getOutputZp(), dwOp.getOutputMin(), dwOp.getOutputMax(),
-                dwOp.getShiftFactor(), channelCount, dwOp.getPad(), dwOp.getStride(),
-                dwOp.getDilation(), dwOp.getVectorizationMode(), tiledWeights.getResult(),
-                tiledScaleBias.getResult(), inputTile
-            );
+            auto outputTile = torq_hl::DepthwiseConv2DOp::create(rewriter, dwOp.getLoc(), tileType, initTile.getResult(), dwOp.getInputZp(),
+            dwOp.getWeightZp(), dwOp.getOutputZp(), dwOp.getOutputMin(), dwOp.getOutputMax(),
+            dwOp.getShiftFactor(), channelCount, dwOp.getPad(), dwOp.getStride(),
+            dwOp.getDilation(), dwOp.getVectorizationMode(), tiledWeights.getResult(),
+            tiledScaleBias.getResult(), inputTile);
 
             if (dwOp.getSegmentOutput()) {
                 outputTile->setAttr(
@@ -707,11 +648,8 @@ class DepthWise2DPattern : public OpRewritePattern<torq_hl::DepthwiseConv2DOp> {
                 );
             }
 
-            outputTensor = rewriter
-                               .create<tensor::InsertSliceOp>(
-                                   dwOp.getLoc(), outputTile.getOutput(), outputTensor, tileOffsets,
-                                   outTileSizes, tileStrides
-                               )
+            outputTensor = tensor::InsertSliceOp::create(rewriter, dwOp.getLoc(), outputTile.getOutput(), outputTensor, tileOffsets,
+            outTileSizes, tileStrides)
                                .getResult();
         }
 
@@ -771,9 +709,7 @@ class FullyConnectedPattern : public OpRewritePattern<torq_hl::FullyConnectedOp>
 
         int totalTiles = totalFullTiles + (trailingChannels > 0 ? 1 : 0);
 
-        Value outputTensor = rewriter.create<tensor::EmptyOp>(
-            fcOp.getLoc(), outputShape, outputType.getElementType()
-        );
+        Value outputTensor = tensor::EmptyOp::create(rewriter, fcOp.getLoc(), outputShape, outputType.getElementType());
 
         for (int i = 0; i < totalTiles; i++) {
 
@@ -791,35 +727,24 @@ class FullyConnectedPattern : public OpRewritePattern<torq_hl::FullyConnectedOp>
             auto outputTileType =
                 RankedTensorType::get({outputShape[0], tileChannels}, outputType.getElementType());
 
-            auto initTile = rewriter.create<tensor::EmptyOp>(
-                fcOp.getLoc(), outputTileType.getShape(), outputTileType.getElementType()
-            );
+            auto initTile = tensor::EmptyOp::create(rewriter, fcOp.getLoc(), outputTileType.getShape(), outputTileType.getElementType());
 
-            auto weightTile = rewriter.create<tensor::ExtractSliceOp>(
-                fcOp.getLoc(), fcOp.getWeights(), createVector({weigthOffset, 0}, rewriter),
-                createVector({tileChannels, weightShape[1]}, rewriter),
-                createVector({1, 1}, rewriter)
-            );
+            auto weightTile = tensor::ExtractSliceOp::create(rewriter, fcOp.getLoc(), fcOp.getWeights(), createVector({weigthOffset, 0}, rewriter),
+            createVector({tileChannels, weightShape[1]}, rewriter),
+            createVector({1, 1}, rewriter));
 
             int scaleBiasItems = outputType.getElementType().isInteger() ? 2 : 1;
-            auto scaleBiasTile = rewriter.create<tensor::ExtractSliceOp>(
-                fcOp.getLoc(), fcOp.getScaleBias(),
-                createVector({i * channelsPerTile * scaleBiasItems}, rewriter),
-                createVector({tileChannels * scaleBiasItems}, rewriter), createVector({1}, rewriter)
-            );
+            auto scaleBiasTile = tensor::ExtractSliceOp::create(rewriter, fcOp.getLoc(), fcOp.getScaleBias(),
+            createVector({i * channelsPerTile * scaleBiasItems}, rewriter),
+            createVector({tileChannels * scaleBiasItems}, rewriter), createVector({1}, rewriter));
 
-            auto outputTile = rewriter.create<torq_hl::FullyConnectedOp>(
-                fcOp.getLoc(), outputTileType, initTile.getResult(), fcOp.getInputZp(),
-                fcOp.getWeightZp(), fcOp.getOutputZp(), fcOp.getOutputMin(), fcOp.getOutputMax(),
-                fcOp.getShiftFactor(), fcOp.getVectorizationMode(), weightTile.getResult(),
-                scaleBiasTile.getResult(), fcOp.getInput()
-            );
+            auto outputTile = torq_hl::FullyConnectedOp::create(rewriter, fcOp.getLoc(), outputTileType, initTile.getResult(), fcOp.getInputZp(),
+            fcOp.getWeightZp(), fcOp.getOutputZp(), fcOp.getOutputMin(), fcOp.getOutputMax(),
+            fcOp.getShiftFactor(), fcOp.getVectorizationMode(), weightTile.getResult(),
+            scaleBiasTile.getResult(), fcOp.getInput());
 
-            outputTensor = rewriter
-                               .create<tensor::InsertSliceOp>(
-                                   fcOp.getLoc(), outputTile.getOutput(), outputTensor,
-                                   outputTileOffsets, outputTileSizes, tileStrides
-                               )
+            outputTensor = tensor::InsertSliceOp::create(rewriter, fcOp.getLoc(), outputTile.getOutput(), outputTensor,
+            outputTileOffsets, outputTileSizes, tileStrides)
                                .getResult();
         }
 
@@ -875,7 +800,7 @@ class AddPattern : public OpRewritePattern<torq_hl::AddOp> {
         auto inShape = op.getInput1().getType().getShape();
 
         Value outputTensor =
-            rewriter.create<tensor::EmptyOp>(op.getLoc(), outShape, outType.getElementType());
+            tensor::EmptyOp::create(rewriter, op.getLoc(), outShape, outType.getElementType());
 
         for (int i = 0; i < totalTiles; i++) {
             int channelCount = maxChannelsPerTile;
@@ -895,26 +820,18 @@ class AddPattern : public OpRewritePattern<torq_hl::AddOp> {
 
             Value input1Tile, input2Tile;
 
-            input1Tile = rewriter.create<tensor::ExtractSliceOp>(
-                op.getLoc(), op.getInput1(), tileOffsets, inTileSizes, tileStrides
-            );
-            input2Tile = rewriter.create<tensor::ExtractSliceOp>(
-                op.getLoc(), op.getInput2(), tileOffsets, inTileSizes, tileStrides
-            );
+            input1Tile = tensor::ExtractSliceOp::create(rewriter, op.getLoc(), op.getInput1(), tileOffsets, inTileSizes, tileStrides);
+            input2Tile = tensor::ExtractSliceOp::create(rewriter, op.getLoc(), op.getInput2(), tileOffsets, inTileSizes, tileStrides);
 
             auto tileType = RankedTensorType::get(
                 {outShape[0], channelCount, outShape[2], outShape[3]}, outType.getElementType()
             );
 
-            auto initTile = rewriter.create<tensor::EmptyOp>(
-                op.getLoc(), tileType.getShape(), tileType.getElementType()
-            );
+            auto initTile = tensor::EmptyOp::create(rewriter, op.getLoc(), tileType.getShape(), tileType.getElementType());
 
-            auto outputTile = rewriter.create<torq_hl::AddOp>(
-                op.getLoc(), tileType, initTile.getResult(), op.getName(), op.getInputZp(),
-                op.getOutputZp(), op.getOutputMin(), op.getOutputMax(), op.getShiftFactor(),
-                op.getWeights(), op.getScaleBias(), input1Tile, input2Tile
-            );
+            auto outputTile = torq_hl::AddOp::create(rewriter, op.getLoc(), tileType, initTile.getResult(), op.getName(), op.getInputZp(),
+            op.getOutputZp(), op.getOutputMin(), op.getOutputMax(), op.getShiftFactor(),
+            op.getWeights(), op.getScaleBias(), input1Tile, input2Tile);
 
             if (op.getSegmentOutput()) {
                 outputTile->setAttr(
@@ -922,11 +839,8 @@ class AddPattern : public OpRewritePattern<torq_hl::AddOp> {
                 );
             }
 
-            outputTensor = rewriter
-                               .create<tensor::InsertSliceOp>(
-                                   op.getLoc(), outputTile.getOutput(), outputTensor, tileOffsets,
-                                   outTileSizes, tileStrides
-                               )
+            outputTensor = tensor::InsertSliceOp::create(rewriter, op.getLoc(), outputTile.getOutput(), outputTensor, tileOffsets,
+            outTileSizes, tileStrides)
                                .getResult();
         }
 
@@ -973,7 +887,7 @@ class DepthToSpacePattern : public OpRewritePattern<torq_hl::DepthToSpaceOp> {
 
         // Output tensor starts empty, each tile will write a slice of it
         Value outputTensor =
-            rewriter.create<tensor::EmptyOp>(op.getLoc(), outShape, outType.getElementType());
+            tensor::EmptyOp::create(rewriter, op.getLoc(), outShape, outType.getElementType());
 
         for (int i = 0; i < totalTiles; i++) {
             int chCount = maxChPerTile;
@@ -990,25 +904,16 @@ class DepthToSpacePattern : public OpRewritePattern<torq_hl::DepthToSpaceOp> {
                 createVector({inShape[0], chCount * spaceFactor, inShape[2], inShape[3]}, rewriter);
             auto tileStrides = createVector({1, 1, 1, 1}, rewriter);
 
-            Value input1Tile = rewriter.create<tensor::ExtractSliceOp>(
-                op.getLoc(), op.getInput(), inTileOffsets, inTileSizes, tileStrides
-            );
+            Value input1Tile = tensor::ExtractSliceOp::create(rewriter, op.getLoc(), op.getInput(), inTileOffsets, inTileSizes, tileStrides);
             auto tileType = RankedTensorType::get(
                 {outShape[0], chCount, outShape[2], outShape[3]}, outType.getElementType()
             );
-            auto initTile = rewriter.create<tensor::EmptyOp>(
-                op.getLoc(), tileType.getShape(), tileType.getElementType()
-            );
-            auto outputTile = rewriter.create<torq_hl::DepthToSpaceOp>(
-                op.getLoc(), tileType, initTile.getResult(), op.getBlockSize(), op.getModeType(),
-                op.getWeights(), input1Tile
-            );
+            auto initTile = tensor::EmptyOp::create(rewriter, op.getLoc(), tileType.getShape(), tileType.getElementType());
+            auto outputTile = torq_hl::DepthToSpaceOp::create(rewriter, op.getLoc(), tileType, initTile.getResult(), op.getBlockSize(), op.getModeType(),
+            op.getWeights(), input1Tile);
 
-            outputTensor = rewriter
-                               .create<tensor::InsertSliceOp>(
-                                   op.getLoc(), outputTile.getOutput(), outputTensor, tileOffsets,
-                                   outTileSizes, tileStrides
-                               )
+            outputTensor = tensor::InsertSliceOp::create(rewriter, op.getLoc(), outputTile.getOutput(), outputTensor, tileOffsets,
+            outTileSizes, tileStrides)
                                .getResult();
         }
 
@@ -1091,7 +996,7 @@ class MaxPoolPattern : public OpRewritePattern<torq_hl::MaxPool2dOp> {
         auto inShape = op.getInput().getType().getShape();
 
         Value outputTensor =
-            rewriter.create<tensor::EmptyOp>(op.getLoc(), outShape, outType.getElementType());
+            tensor::EmptyOp::create(rewriter, op.getLoc(), outShape, outType.getElementType());
 
         for (int i = 0; i < totalTiles; i++) {
             int channelCount = maxChannelsPerTile;
@@ -1113,43 +1018,30 @@ class MaxPoolPattern : public OpRewritePattern<torq_hl::MaxPool2dOp> {
 
             if (segmentationOp) {
 
-                auto segmentationInputTile = rewriter.create<tensor::ExtractSliceOp>(
-                    op.getLoc(), segmentationOp.getInput(), tileOffsets, inTileSizes, tileStrides
-                );
+                auto segmentationInputTile = tensor::ExtractSliceOp::create(rewriter, op.getLoc(), segmentationOp.getInput(), tileOffsets, inTileSizes, tileStrides);
 
                 auto segmentedType = segmentationInputTile.getType();
-                auto segmentationInitTile = rewriter.create<tensor::EmptyOp>(
-                    op.getLoc(), segmentedType.getShape(), segmentedType.getElementType()
-                );
+                auto segmentationInitTile = tensor::EmptyOp::create(rewriter, op.getLoc(), segmentedType.getShape(), segmentedType.getElementType());
 
-                inputTile = rewriter
-                                .create<torq_hl::SegmentationOp>(
-                                    segmentationOp.getLoc(), segmentationInputTile.getType(),
-                                    segmentationInitTile.getResult(), segmentationOp.getInputZp(),
-                                    segmentationOp.getOutputZp(), segmentationOp.getOutputMin(),
-                                    segmentationOp.getOutputMax(), segmentationOp.getWeights(),
-                                    segmentationOp.getScaleBias(), segmentationInputTile
-                                )
+                inputTile = torq_hl::SegmentationOp::create(rewriter, segmentationOp.getLoc(), segmentationInputTile.getType(),
+                segmentationInitTile.getResult(), segmentationOp.getInputZp(),
+                segmentationOp.getOutputZp(), segmentationOp.getOutputMin(),
+                segmentationOp.getOutputMax(), segmentationOp.getWeights(),
+                segmentationOp.getScaleBias(), segmentationInputTile)
                                 .getOutput();
             }
             else {
-                inputTile = rewriter.create<tensor::ExtractSliceOp>(
-                    op.getLoc(), op.getInput(), tileOffsets, inTileSizes, tileStrides
-                );
+                inputTile = tensor::ExtractSliceOp::create(rewriter, op.getLoc(), op.getInput(), tileOffsets, inTileSizes, tileStrides);
             }
 
             auto tileType = RankedTensorType::get(
                 {outShape[0], channelCount, outShape[2], outShape[3]}, outType.getElementType()
             );
 
-            auto initTile = rewriter.create<tensor::EmptyOp>(
-                op.getLoc(), tileType.getShape(), tileType.getElementType()
-            );
+            auto initTile = tensor::EmptyOp::create(rewriter, op.getLoc(), tileType.getShape(), tileType.getElementType());
 
-            auto outputTile = rewriter.create<torq_hl::MaxPool2dOp>(
-                op.getLoc(), tileType, initTile.getResult(), op.getInputZp(), op.getStride(),
-                op.getPad(), op.getKernel(), op.getWeights(), op.getScaleBias(), inputTile
-            );
+            auto outputTile = torq_hl::MaxPool2dOp::create(rewriter, op.getLoc(), tileType, initTile.getResult(), op.getInputZp(), op.getStride(),
+            op.getPad(), op.getKernel(), op.getWeights(), op.getScaleBias(), inputTile);
 
             if (op.getSegmentOutput()) {
                 outputTile->setAttr(
@@ -1157,11 +1049,8 @@ class MaxPoolPattern : public OpRewritePattern<torq_hl::MaxPool2dOp> {
                 );
             }
 
-            outputTensor = rewriter
-                               .create<tensor::InsertSliceOp>(
-                                   op.getLoc(), outputTile.getOutput(), outputTensor, tileOffsets,
-                                   outTileSizes, tileStrides
-                               )
+            outputTensor = tensor::InsertSliceOp::create(rewriter, op.getLoc(), outputTile.getOutput(), outputTensor, tileOffsets,
+            outTileSizes, tileStrides)
                                .getResult();
         }
 
@@ -1199,10 +1088,8 @@ class ScatterPattern : public OpRewritePattern<torq_hl::ScatterOp> {
             auto inputTileOffsets = createVector({0, i, 0}, rewriter);
             auto inputTileSizes = createVector({1, 1, inputShape[2]}, rewriter);
             auto tileStrides = createVector({1, 1, 1}, rewriter);
-            auto inputTile = rewriter.create<tensor::ExtractSliceOp>(
-                scatterOp.getLoc(), scatterOp.getInput(), inputTileOffsets, inputTileSizes,
-                tileStrides
-            );
+            auto inputTile = tensor::ExtractSliceOp::create(rewriter, scatterOp.getLoc(), scatterOp.getInput(), inputTileOffsets, inputTileSizes,
+            tileStrides);
 
             auto tileType =
                 RankedTensorType::get({outShape[0], 1, outShape[2]}, outType.getElementType());
@@ -1211,23 +1098,16 @@ class ScatterPattern : public OpRewritePattern<torq_hl::ScatterOp> {
             auto outputTileSizes = createVector({outShape[0], 1, outShape[2]}, rewriter);
             auto outputTileStrides = createVector({1, 1, 1}, rewriter);
 
-            auto outTile = rewriter.create<tensor::ExtractSliceOp>(
-                scatterOp.getLoc(), scatterOp.getInit(), outputTileOffsets, outputTileSizes,
-                outputTileStrides
-            );
+            auto outTile = tensor::ExtractSliceOp::create(rewriter, scatterOp.getLoc(), scatterOp.getInit(), outputTileOffsets, outputTileSizes,
+            outputTileStrides);
 
-            auto outputTile = rewriter.create<torq_hl::ScatterOp>(
-                scatterOp.getLoc(), tileType, outTile.getResult(), scatterOp.getIndices(),
-                inputTile, scatterOp.getScaleBias()
-            );
+            auto outputTile = torq_hl::ScatterOp::create(rewriter, scatterOp.getLoc(), tileType, outTile.getResult(), scatterOp.getIndices(),
+            inputTile, scatterOp.getScaleBias());
 
             outputTensor =
-                rewriter
-                    .create<tensor::InsertSliceOp>(
-                        scatterOp.getLoc(),
-                        outputTile.getOutput(), // outputTile.getOutput() contains updated values_in
-                        outputTensor, outputTileOffsets, outputTileSizes, outputTileStrides
-                    )
+                tensor::InsertSliceOp::create(rewriter, scatterOp.getLoc(),
+                outputTile.getOutput(), // outputTile.getOutput() contains updated values_in
+                outputTensor, outputTileOffsets, outputTileSizes, outputTileStrides)
                     .getResult();
         }
         rewriter.replaceOp(scatterOp, outputTensor);
@@ -1282,7 +1162,7 @@ class ResizeNearestPattern : public OpRewritePattern<torq_hl::ResizeNearestNeigh
         auto inShape = op.getInput().getType().getShape();
 
         Value outputTensor =
-            rewriter.create<tensor::EmptyOp>(op.getLoc(), outShape, outType.getElementType());
+            tensor::EmptyOp::create(rewriter, op.getLoc(), outShape, outType.getElementType());
 
         for (int i = 0; i < totalTiles; i++) {
             int channelCount = maxChannelsPerTile;
@@ -1300,27 +1180,18 @@ class ResizeNearestPattern : public OpRewritePattern<torq_hl::ResizeNearestNeigh
 
             auto tileStrides = createVector({1, 1, 1, 1}, rewriter);
 
-            Value inputTile = rewriter.create<tensor::ExtractSliceOp>(
-                op.getLoc(), op.getInput(), tileOffsets, inTileSizes, tileStrides
-            );
+            Value inputTile = tensor::ExtractSliceOp::create(rewriter, op.getLoc(), op.getInput(), tileOffsets, inTileSizes, tileStrides);
 
             auto tileType = RankedTensorType::get(
                 {outShape[0], channelCount, outShape[2], outShape[3]}, outType.getElementType()
             );
 
-            auto initTile = rewriter.create<tensor::EmptyOp>(
-                op.getLoc(), tileType.getShape(), tileType.getElementType()
-            );
+            auto initTile = tensor::EmptyOp::create(rewriter, op.getLoc(), tileType.getShape(), tileType.getElementType());
 
-            auto outputTile = rewriter.create<torq_hl::ResizeNearestNeighborOp>(
-                op.getLoc(), tileType, initTile.getResult(), op.getScaleFactor(), inputTile
-            );
+            auto outputTile = torq_hl::ResizeNearestNeighborOp::create(rewriter, op.getLoc(), tileType, initTile.getResult(), op.getScaleFactor(), inputTile);
 
-            outputTensor = rewriter
-                               .create<tensor::InsertSliceOp>(
-                                   op.getLoc(), outputTile.getOutput(), outputTensor, tileOffsets,
-                                   outTileSizes, tileStrides
-                               )
+            outputTensor = tensor::InsertSliceOp::create(rewriter, op.getLoc(), outputTile.getOutput(), outputTensor, tileOffsets,
+            outTileSizes, tileStrides)
                                .getResult();
         }
 

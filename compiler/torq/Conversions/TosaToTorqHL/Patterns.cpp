@@ -152,9 +152,7 @@ LogicalResult reverseTConvWeights(
                                               outputShape[2] / 2, outputShape[3]};
     auto expandType = mlir::RankedTensorType::get(modWeightShape, elementType);
 
-    auto expand = rewriter.create<tensor::ExpandShapeOp>(
-        loc, expandType, weights, llvm::ArrayRef<llvm::SmallVector<int64_t, 2>>(expandReassoc)
-    );
+    auto expand = tensor::ExpandShapeOp::create(rewriter, loc, expandType, weights, llvm::ArrayRef<llvm::SmallVector<int64_t, 2>>(expandReassoc));
 
     llvm::SmallVector<int64_t> perm{2, 4, 0, 1, 3, 5};
     llvm::SmallVector<int64_t> modTransposeShape{
@@ -163,7 +161,7 @@ LogicalResult reverseTConvWeights(
     auto transposeType = mlir::RankedTensorType::get(modTransposeShape, elementType);
     auto transposeOutput = createInitTensor(loc, transposeType, rewriter);
     auto transpose =
-        rewriter.create<linalg::TransposeOp>(loc, expand.getResult(), transposeOutput, perm);
+        linalg::TransposeOp::create(rewriter, loc, expand.getResult(), transposeOutput, perm);
 
     llvm::SmallVector<llvm::SmallVector<int64_t, 2>> collapseReassoc{{0, 1, 2}, {3}, {4}, {5}};
     llvm::SmallVector<int64_t> newWeightShape{
@@ -171,10 +169,8 @@ LogicalResult reverseTConvWeights(
     };
     auto collapseType = mlir::RankedTensorType::get(newWeightShape, elementType);
 
-    auto collapse = rewriter.create<tensor::CollapseShapeOp>(
-        loc, collapseType, *transpose.getResults().begin(),
-        llvm::ArrayRef<llvm::SmallVector<int64_t, 2>>(collapseReassoc)
-    );
+    auto collapse = tensor::CollapseShapeOp::create(rewriter, loc, collapseType, *transpose.getResults().begin(),
+    llvm::ArrayRef<llvm::SmallVector<int64_t, 2>>(collapseReassoc));
 
     // 32x4x4x32
     // 32x2x2x2x2x32
@@ -198,13 +194,11 @@ LogicalResult reverseTConvWeights(
 
     auto newWeights = createInitTensor(loc, collapseType, rewriter);
 
-    auto genericOp = rewriter.create<linalg::GenericOp>(
-        loc, TypeRange{newWeights.getType()}, ValueRange{collapse.getResult()},
-        ValueRange{newWeights}, indexingMaps, iteratorTypes,
-        [&](OpBuilder &b, Location loc, ValueRange args) {
-            b.create<linalg::YieldOp>(loc, args[0]);
-        }
-    );
+    auto genericOp = linalg::GenericOp::create(rewriter, loc, TypeRange{newWeights.getType()}, ValueRange{collapse.getResult()},
+    ValueRange{newWeights}, indexingMaps, iteratorTypes,
+    [&](OpBuilder &b, Location loc, ValueRange args) {
+        linalg::YieldOp::create(b, loc, args[0]);
+    });
 
     llvm::SmallVector<int64_t> oihwPerm{0, 3, 1, 2};
     llvm::SmallVector<int64_t> oihwShape{
@@ -213,7 +207,7 @@ LogicalResult reverseTConvWeights(
     auto oihwType = mlir::RankedTensorType::get(oihwShape, elementType);
     auto oihwOutput = createInitTensor(loc, oihwType, rewriter);
     auto oihwTransposeOp =
-        rewriter.create<linalg::TransposeOp>(loc, genericOp.getResult(0), oihwOutput, oihwPerm);
+        linalg::TransposeOp::create(rewriter, loc, genericOp.getResult(0), oihwOutput, oihwPerm);
     auto newWeightsOIHW = computeValue(*oihwTransposeOp.getResults().begin(), true, {});
     if (failed(newWeightsOIHW)) {
         return rewriter.notifyMatchFailure(oihwTransposeOp, "Weight computation failed");
@@ -355,14 +349,10 @@ static LogicalResult fuseWithRescaleOp(
         rewriter.getIndexAttr(0), rewriter.getIndexAttr(0), rewriter.getIndexAttr(0),
         rewriter.getIndexAttr(0)
     };
-    Value zero = rewriter.create<arith::ConstantOp>(
-        rescaleOp.getLoc(), rewriter.getIntegerAttr(elementType, inputZp)
-    );
+    Value zero = arith::ConstantOp::create(rewriter, rescaleOp.getLoc(), rewriter.getIntegerAttr(elementType, inputZp));
 
     // Conv2D
-    auto padOp = rewriter.create<tensor::PadOp>(
-        rescaleOp.getLoc(), padInitType, input, lowPad, highPad, zero
-    );
+    auto padOp = tensor::PadOp::create(rewriter, rescaleOp.getLoc(), padInitType, input, lowPad, highPad, zero);
 
     auto padOut =
         transposeValue(padOp, Permutation::nhwc2nchw().reverse(), rescaleOp.getLoc(), rewriter);
@@ -377,17 +367,15 @@ static LogicalResult fuseWithRescaleOp(
 
     auto convInitTensor = createInitTensor(rescaleOp.getLoc(), convInitType, rewriter);
 
-    auto conv2dOp = rewriter.create<syna::torq_hl::Conv2DOp>(
-        rescaleOp.getLoc(), convInitType, convInitTensor,
-        inputZp, // input_zp
-        0,       // weight_zp
-        outputZp, outMin, outMax, shiftFactor,
-        1,        // groups
-        pad,      // pad
-        stride,   // stride
-        dilation, // dilation
-        vectorizationMode, weights, biasScaleValue, convInput
-    );
+    auto conv2dOp = syna::torq_hl::Conv2DOp::create(rewriter, rescaleOp.getLoc(), convInitType, convInitTensor,
+    inputZp, // input_zp
+    0,       // weight_zp
+    outputZp, outMin, outMax, shiftFactor,
+    1,        // groups
+    pad,      // pad
+    stride,   // stride
+    dilation, // dilation
+    vectorizationMode, weights, biasScaleValue, convInput);
 
     auto convOut = transposeValue(
         conv2dOp.getOutput(), Permutation::nhwc2nchw().reverse(), rescaleOp.getLoc(), rewriter
@@ -413,15 +401,13 @@ static LogicalResult fuseWithRescaleOp(
     RankedTensorType d2sInitType =
         RankedTensorType::get(llvm::ArrayRef<int64_t>(d2sOutputShape), elementType);
 
-    auto d2sOp = rewriter.create<torq_hl::DepthToSpaceOp>(
-        rescaleOp.getLoc(), d2sInitType,
-        createInitTensor(rescaleOp.getLoc(), d2sInitType, rewriter), blockSize, d2s_enum_mode,
-        createI8Const(
-            rewriter, rescaleOp, d2s_weights, llvm::ArrayRef<int64_t>{wram_width * num_inputs}
-        ),
-        // transposeValue(conv2dOp.getOperand(0), d2s_input_type, rescaleOp.getLoc(), rewriter)
-        d2s_input
-    );
+    auto d2sOp = torq_hl::DepthToSpaceOp::create(rewriter, rescaleOp.getLoc(), d2sInitType,
+    createInitTensor(rescaleOp.getLoc(), d2sInitType, rewriter), blockSize, d2s_enum_mode,
+    createI8Const(
+        rewriter, rescaleOp, d2s_weights, llvm::ArrayRef<int64_t>{wram_width * num_inputs}
+    ),
+    // transposeValue(conv2dOp.getOperand(0), d2s_input_type, rescaleOp.getLoc(), rewriter)
+    d2s_input);
     auto d2sTransposedOut =
         transposeValue(d2sOp.getOutput(), d2s_output_type, rescaleOp.getLoc(), rewriter);
 
@@ -443,9 +429,7 @@ static LogicalResult fuseWithRescaleOp(
 
     Value extractInput =
         transposeValue(d2sTransposedOut, Permutation::nhwc2nchw(), rescaleOp.getLoc(), rewriter);
-    auto extractSlice = rewriter.create<tensor::ExtractSliceOp>(
-        rescaleOp.getLoc(), extractInput, extractOffset, extractSize, extractStrides
-    );
+    auto extractSlice = tensor::ExtractSliceOp::create(rewriter, rescaleOp.getLoc(), extractInput, extractOffset, extractSize, extractStrides);
     auto extractOut = transposeValue(
         extractSlice, Permutation::nhwc2nchw().reverse(), rescaleOp.getLoc(), rewriter
     );
@@ -529,13 +513,11 @@ static LogicalResult fuseWithRescaleOp(
 
     auto out_type = RankedTensorType::get(outShape, srcOp.getResult().getType().getElementType());
 
-    auto avgPool2DOp = rewriter.create<syna::torq_hl::AvgPool2DOp>(
-        srcOp.getLoc(), out_type, createInitTensor(srcOp, rewriter, out_type),
-        MakeI32Attr(srcOp, input_zp), MakeI32Attr(srcOp, output_zp), MakeI32Attr(srcOp, out_min),
-        MakeI32Attr(srcOp, out_max), MakeI32Attr(srcOp, shift_factor),
-        createI8Const(rewriter, srcOp, std::vector<int8_t>{1}, llvm::ArrayRef<int64_t>{1, 1, 1, 1}),
-        createIConst(rewriter, srcOp, interleave(bias, scale)), tosaOpInput
-    );
+    auto avgPool2DOp = syna::torq_hl::AvgPool2DOp::create(rewriter, srcOp.getLoc(), out_type, createInitTensor(srcOp, rewriter, out_type),
+    MakeI32Attr(srcOp, input_zp), MakeI32Attr(srcOp, output_zp), MakeI32Attr(srcOp, out_min),
+    MakeI32Attr(srcOp, out_max), MakeI32Attr(srcOp, shift_factor),
+    createI8Const(rewriter, srcOp, std::vector<int8_t>{1}, llvm::ArrayRef<int64_t>{1, 1, 1, 1}),
+    createIConst(rewriter, srcOp, interleave(bias, scale)), tosaOpInput);
 
     rewriter.replaceOp(targetOp, avgPool2DOp.getOutput());
 
@@ -838,10 +820,8 @@ struct ScatterOpConversion : public OpConversionPattern<tosa::ScatterOp> {
 
         auto outType = convertTypeNHCtoNCH(srcOp.getValuesIn().getType());
 
-        auto output = rewriter.create<torq_hl::ScatterOp>(
-            srcOp.getLoc(), outType, valuesIn, indices_value, input,
-            createI32Const(rewriter, srcOp, std::vector<int32_t>{0, 1})
-        );
+        auto output = torq_hl::ScatterOp::create(rewriter, srcOp.getLoc(), outType, valuesIn, indices_value, input,
+        createI32Const(rewriter, srcOp, std::vector<int32_t>{0, 1}));
 
         auto transposeOp = convertNCHtoNHC(output.getOutput(), srcOp.getLoc(), rewriter);
         rewriter.replaceOp(srcOp, transposeOp);
@@ -897,11 +877,9 @@ struct ResizeNearestNeighborOpConversion : public OpConversionPattern<tosa::Resi
         if (mode != "NEAREST_NEIGHBOR") {
             return srcOp.emitError("Current support only for NEAREST_NEIGHBOR with scale 2");
         }
-        auto output = rewriter.create<syna::torq_hl::ResizeNearestNeighborOp>(
-            srcOp.getLoc(), convertTypeNHWCtoNCHW(srcOp.getResult().getType()),
-            createInitTensorNCHW(srcOp, rewriter), scale[0],
-            convertNHWCtoNCHW(srcOp.getInput(), srcOp.getLoc(), rewriter)
-        );
+        auto output = syna::torq_hl::ResizeNearestNeighborOp::create(rewriter, srcOp.getLoc(), convertTypeNHWCtoNCHW(srcOp.getResult().getType()),
+        createInitTensorNCHW(srcOp, rewriter), scale[0],
+        convertNHWCtoNCHW(srcOp.getInput(), srcOp.getLoc(), rewriter));
         auto transposeOp = convertNCHWtoNHWC(output.getOutput(), srcOp.getLoc(), rewriter);
         rewriter.replaceOp(srcOp, transposeOp);
         return success();

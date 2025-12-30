@@ -57,7 +57,7 @@ createZeroConstant(Value value, Location loc, OpBuilder &builder, IRMapping &map
         return failure();
     }
 
-    auto zeroValue = builder.create<arith::ConstantOp>(loc, value.getType(), zeroAttr);
+    auto zeroValue = arith::ConstantOp::create(builder, loc, value.getType(), zeroAttr);
 
     // map any reference to assumeZero to zeroValue
     map.map(value, zeroValue);
@@ -78,21 +78,19 @@ static FailureOr<IREE::HAL::ExecutableVariantOp> createModule(
 
     builder.setInsertionPointToStart(topModuleOp.getBody());
 
-    auto executableOp = builder.create<IREE::HAL::ExecutableOp>(loc, "test");
+    auto executableOp = IREE::HAL::ExecutableOp::create(builder, loc, "test");
 
     builder.setInsertionPointToStart(&executableOp.getBody().front());
     auto targetAttr = IREE::HAL::ExecutableTargetAttr::get(
         context, builder.getStringAttr("llvm-native"), builder.getStringAttr("native")
     );
-    auto variantOp = builder.create<IREE::HAL::ExecutableVariantOp>(loc, "native", targetAttr);
+    auto variantOp = IREE::HAL::ExecutableVariantOp::create(builder, loc, "native", targetAttr);
     builder.setInsertionPointToStart(&variantOp.getBody().front());
 
-    auto moduleOp = builder.create<ModuleOp>(loc);
+    auto moduleOp = ModuleOp::create(builder, loc);
     builder.setInsertionPointToStart(moduleOp.getBody());
 
-    auto funcOp = builder.create<func::FuncOp>(
-        loc, "main", builder.getFunctionType(TypeRange{}, TypeRange{})
-    );
+    auto funcOp = func::FuncOp::create(builder, loc, "main", builder.getFunctionType(TypeRange{}, TypeRange{}));
 
     auto translationInfo = IREE::Codegen::TranslationInfoAttr::get(
         funcOp.getContext(),
@@ -109,10 +107,8 @@ static FailureOr<IREE::HAL::ExecutableVariantOp> createModule(
     RankedTensorType resultType = cast<RankedTensorType>(value.getType());
     auto dispatchTensorType =
         IREE::Flow::DispatchTensorType::get(IREE::Flow::TensorAccess::WriteOnly, resultType);
-    auto subspanOp = builder.create<IREE::HAL::InterfaceBindingSubspanOp>(
-        loc, dispatchTensorType, APInt(64, 0), APInt(64, 0),
-        IREE::HAL::DescriptorType::StorageBuffer, nullptr, ValueRange{}, builder.getIndexAttr(4)
-    );
+    auto subspanOp = IREE::HAL::InterfaceBindingSubspanOp::create(builder, loc, dispatchTensorType, APInt(64, 0), APInt(64, 0),
+    IREE::HAL::DescriptorType::StorageBuffer, nullptr, ValueRange{}, builder.getIndexAttr(4));
 
     IRMapping map;
 
@@ -131,12 +127,10 @@ static FailureOr<IREE::HAL::ExecutableVariantOp> createModule(
     }
 
     // store the value that corresponds to the original value in the binding subspan
-    builder.create<IREE::Flow::DispatchTensorStoreOp>(
-        loc, map.lookup(value), subspanOp, ValueRange{}
-    );
+    IREE::Flow::DispatchTensorStoreOp::create(builder, loc, map.lookup(value), subspanOp, ValueRange{});
 
     // return nothing (this is the calling convention for IREE dispatches)
-    builder.create<func::ReturnOp>(loc, ValueRange{});
+    func::ReturnOp::create(builder, loc, ValueRange{});
 
     return variantOp;
 }
@@ -236,13 +230,13 @@ static void replaceStackAllocationsWithMalloc(IREE::HAL::ExecutableVariantOp evO
     auto llvmI64Type = builder.getIntegerType(64);
     auto llvmPtrType = LLVM::LLVMPointerType::get(evOp.getContext());
     auto funcType = LLVM::LLVMFunctionType::get(llvmPtrType, {llvmI64Type}, false);
-    LLVM::LLVMFuncOp mallocFunc = builder.create<LLVM::LLVMFuncOp>(loc, "malloc", funcType);
+    LLVM::LLVMFuncOp mallocFunc = LLVM::LLVMFuncOp::create(builder, loc, "malloc", funcType);
     mallocFunc.setLinkage(LLVM::Linkage::External);
 
     // import free() in the module
     auto llvmVoidType = mlir::LLVM::LLVMVoidType::get(evOp.getContext());
     funcType = LLVM::LLVMFunctionType::get(llvmVoidType, {llvmPtrType}, false);
-    auto freeFunc = builder.create<LLVM::LLVMFuncOp>(loc, "free", funcType);
+    auto freeFunc = LLVM::LLVMFuncOp::create(builder, loc, "free", funcType);
     freeFunc.setLinkage(LLVM::Linkage::External);
 
     // Replace stack alloca with call to malloc
@@ -257,23 +251,17 @@ static void replaceStackAllocationsWithMalloc(IREE::HAL::ExecutableVariantOp evO
         auto elementSize = allocaOp.getElemType().getIntOrFloatBitWidth() / 8;
         assert(elementSize > 0);
 
-        Value sizeValue = builder.create<LLVM::ConstantOp>(
-            allocaOp.getLoc(), llvmI64Type, builder.getIntegerAttr(llvmI64Type, elementSize)
-        );
+        Value sizeValue = LLVM::ConstantOp::create(builder, allocaOp.getLoc(), llvmI64Type, builder.getIntegerAttr(llvmI64Type, elementSize));
 
         if (allocaOp.getArraySize()) {
             // multiply by the array size
-            sizeValue = builder.create<LLVM::MulOp>(
-                allocaOp.getLoc(), sizeValue,
-                builder.create<LLVM::ZExtOp>(
-                    allocaOp.getLoc(), llvmI64Type, allocaOp.getArraySize()
-                )
-            );
+            sizeValue = LLVM::MulOp::create(builder, allocaOp.getLoc(), sizeValue,
+            LLVM::ZExtOp::create(builder, allocaOp.getLoc(), llvmI64Type, allocaOp.getArraySize()));
         }
 
         // create the malloc call
         auto mallocCall =
-            builder.create<LLVM::CallOp>(allocaOp.getLoc(), mallocFunc, ValueRange{sizeValue});
+            LLVM::CallOp::create(builder, allocaOp.getLoc(), mallocFunc, ValueRange{sizeValue});
 
         // replace all uses of the alloca with the result of the cast
         allocaOp.replaceAllUsesWith(mallocCall.getResult());
@@ -288,7 +276,7 @@ static void replaceStackAllocationsWithMalloc(IREE::HAL::ExecutableVariantOp evO
         funcOp.walk([&](LLVM::ReturnOp returnOp) {
             OpBuilder builder(returnOp);
             for (auto alloc : allocations) {
-                builder.create<LLVM::CallOp>(returnOp.getLoc(), freeFunc, ValueRange{alloc});
+                LLVM::CallOp::create(builder, returnOp.getLoc(), freeFunc, ValueRange{alloc});
             }
         });
     });

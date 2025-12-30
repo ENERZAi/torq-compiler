@@ -269,7 +269,7 @@ struct TorqHLGenericOpBufferizableOpInterface
             newOutputBuffers.push_back(qBuffer);
         }
 
-        rewriter.create<GenericOp>(op->getLoc(), config);
+        GenericOp::create(rewriter, op->getLoc(), config);
 
         bufferization::replaceOpWithBufferizedValues(rewriter, op, newOutputBuffers);
 

@@ -428,10 +428,8 @@ class SwapExtractAndConvert : public OpRewritePattern<torq_hl::ConvertOp> {
         rewriter.setInsertionPoint(extractOp);
 
         // create an extract slice on the input of the convert
-        auto preExtract = rewriter.create<tensor::ExtractSliceOp>(
-            extractOp.getLoc(), op.getInput(), extractOp.getMixedOffsets(),
-            extractOp.getMixedSizes(), extractOp.getMixedStrides()
-        );
+        auto preExtract = tensor::ExtractSliceOp::create(rewriter, extractOp.getLoc(), op.getInput(), extractOp.getMixedOffsets(),
+        extractOp.getMixedSizes(), extractOp.getMixedStrides());
 
         // convert back the slice to the type of the original extract slice result
         auto postConvert =

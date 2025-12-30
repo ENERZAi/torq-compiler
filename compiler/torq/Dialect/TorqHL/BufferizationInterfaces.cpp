@@ -71,7 +71,7 @@ static LogicalResult bufferizeOp(
         }
     }
 
-    rewriter.create<OpT>(op->getLoc(), resultTypes, newOperands, op->getAttrs());
+    OpT::create(rewriter, op->getLoc(), resultTypes, newOperands, op->getAttrs());
     bufferization::replaceOpWithBufferizedValues(rewriter, op, newValues);
 
     return success();
@@ -127,9 +127,7 @@ struct ImportProgramOpBufferizableOpInterface
         auto tensorType = cast<RankedTensorType>(programOp.getType());
         auto memrefType = MemRefType::get(tensorType.getShape(), tensorType.getElementType());
 
-        auto newProgramOp = rewriter.create<torq_hl::ImportProgramOp>(
-            op->getLoc(), memrefType, programOp.getName()
-        );
+        auto newProgramOp = torq_hl::ImportProgramOp::create(rewriter, op->getLoc(), memrefType, programOp.getName());
 
         rewriter.replaceOpWithNewOp<bufferization::ToTensorOp>(
             op, tensorType, newProgramOp.getResult()

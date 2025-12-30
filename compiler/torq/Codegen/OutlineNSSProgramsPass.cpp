@@ -176,10 +176,8 @@ static FailureOr<torq_hl::StartProgramOp> outlineOperations(
     auto programSize = getProgramSize(programOp);
     auto programSectionType = MemRefType::get({programSize}, builder.getI8Type());
     auto codeSectionAddresses = builder.getDenseI64ArrayAttr({xramProgramAddress});
-    auto createInvocationOp = builder.create<torq_hl::CreateInvocationOp>(
-        loc, TypeRange{invocationType, programSectionType}, programOp.getName(),
-        programOp.getProgram(), nullptr, nullptr, codeSectionAddresses, nullptr
-    );
+    auto createInvocationOp = torq_hl::CreateInvocationOp::create(builder, loc, TypeRange{invocationType, programSectionType}, programOp.getName(),
+    programOp.getProgram(), nullptr, nullptr, codeSectionAddresses, nullptr);
 
     auto xramProgram = createInvocationOp.getCodeSections()[0];
 
@@ -213,13 +211,11 @@ static FailureOr<torq_hl::StartProgramOp> outlineOperations(
 
         // to be efficient the copy operation copies a scalar of size programSize
         // this is ok because we know input and output memrefs are contiguous
-        builder.create<torq_hl::HostCopyOp>(
-            loc, lramProgramAlloc, xramProgram,
-            /*inputStridesBytes=*/builder.getDenseI64ArrayAttr({}),
-            /*outputStridesBytes=*/builder.getDenseI64ArrayAttr({}),
-            /*shape=*/builder.getDenseI64ArrayAttr({}),
-            /*elementSizeBytes=*/builder.getI64IntegerAttr(programSize)
-        );
+        torq_hl::HostCopyOp::create(builder, loc, lramProgramAlloc, xramProgram,
+        /*inputStridesBytes=*/builder.getDenseI64ArrayAttr({}),
+        /*outputStridesBytes=*/builder.getDenseI64ArrayAttr({}),
+        /*shape=*/builder.getDenseI64ArrayAttr({}),
+        /*elementSizeBytes=*/builder.getI64IntegerAttr(programSize));
     }
 
     if (!programOps.empty()) {
@@ -227,19 +223,17 @@ static FailureOr<torq_hl::StartProgramOp> outlineOperations(
     }
 
     // add the start and wait operations
-    auto startOp = builder.create<torq_hl::StartProgramOp>(
-        loc,
-        /* invocation = */ createInvocationOp.getInvocation(),
-        /* code_sections = */ ValueRange{lramProgramAlloc},
-        /* args = */ outliningResults.inputs
-    );
+    auto startOp = torq_hl::StartProgramOp::create(builder, loc,
+    /* invocation = */ createInvocationOp.getInvocation(),
+    /* code_sections = */ ValueRange{lramProgramAlloc},
+    /* args = */ outliningResults.inputs);
 
     SmallVector<Type> outputTypes;
     for (auto output : outliningResults.outputs) {
         outputTypes.push_back(output.getType());
     }
 
-    auto waitOp = builder.create<torq_hl::WaitProgramOp>(loc, outputTypes, startOp.getInvocation());
+    auto waitOp = torq_hl::WaitProgramOp::create(builder, loc, outputTypes, startOp.getInvocation());
 
     // replace all usages of the outputs with the results of the wait operation
     for (auto [output, result] : llvm::zip(outliningResults.outputs, waitOp.getOutputs())) {
@@ -267,7 +261,7 @@ static SmallVector<Value> createLramCodeAreas(FunctionOpInterface funcOp, OpBuil
     // allocate two memrefs that will be used to load the current and next program
     // the address has been reserved during the address allocation phase
     for (int i = 0; i < 2; i++) {
-        auto allocOp = builder.create<memref::AllocOp>(funcOp.getLoc(), lramProgramSectionType);
+        auto allocOp = memref::AllocOp::create(builder, funcOp.getLoc(), lramProgramSectionType);
         setLramAddress(allocOp, i * HwInfo::nss_max_program_size);
         values.push_back(allocOp.getResult());
     }

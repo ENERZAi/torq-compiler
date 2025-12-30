@@ -45,7 +45,7 @@ class OpToConstOpRewriter : public RewritePattern {
             return failure();
         }
 
-        auto constOp = rewriter.create<arith::ConstantOp>(op->getLoc(), *constAttr);
+        auto constOp = arith::ConstantOp::create(rewriter, op->getLoc(), *constAttr);
         rewriter.replaceOp(op, constOp);
 
         return success();

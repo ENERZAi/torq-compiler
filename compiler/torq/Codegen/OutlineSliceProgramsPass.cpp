@@ -61,7 +61,7 @@ class ForallOpPattern : public OpRewritePattern<scf::ForallOp> {
         if (!forallOp.getInductionVar(0).use_empty()) {
             for (unsigned i = 1; i < unrollFactor; i++) {
                 Value ivUnroll =
-                    rewriter.create<arith::ConstantOp>(forallOp.getLoc(), rewriter.getIndexAttr(i));
+                    arith::ConstantOp::create(rewriter, forallOp.getLoc(), rewriter.getIndexAttr(i));
                 operandMaps[i - 1].map(forallOp.getInductionVar(0), ivUnroll);
             }
         }
@@ -115,7 +115,7 @@ static void outlineOp(int idx, Operation *op, OpBuilder builder) {
     std::string programName =
         "slice_program_" + op->getName().getStringRef().str() + "_" + std::to_string(idx);
     auto programOp =
-        builder.create<torq_hl::ProgramOp>(loc, programType, builder.getStringAttr(programName));
+        torq_hl::ProgramOp::create(builder, loc, programType, builder.getStringAttr(programName));
 
     // create the body of the program
     Block &body = programOp.getBody().emplaceBlock();
@@ -131,16 +131,14 @@ static void outlineOp(int idx, Operation *op, OpBuilder builder) {
     builder.clone(*op, map);
 
     // add a return operation to the program body that returns nothing
-    builder.create<torq_hl::ReturnOp>(loc, ValueRange{});
+    torq_hl::ReturnOp::create(builder, loc, ValueRange{});
 
     // create the invocation
     builder.setInsertionPoint(op);
     auto invocationType = torq_hl::InvocationType::get(ctx, torq_hl::Executor::Slice);
     auto programSectionType = MemRefType::get({size}, builder.getI8Type());
-    auto createInvocationOp = builder.create<torq_hl::CreateInvocationOp>(
-        loc, TypeRange{invocationType, programSectionType}, programOp.getName(),
-        programOp.getProgram(), nullptr, nullptr, nullptr, nullptr
-    );
+    auto createInvocationOp = torq_hl::CreateInvocationOp::create(builder, loc, TypeRange{invocationType, programSectionType}, programOp.getName(),
+    programOp.getProgram(), nullptr, nullptr, nullptr, nullptr);
 
     // move the code from xram to lram
     auto programSectionLramCodeType = MemRefType::get(
@@ -148,7 +146,7 @@ static void outlineOp(int idx, Operation *op, OpBuilder builder) {
         createDenseEncoding(programSectionType, torq_hl::MemorySpace::Lram)
     );
     auto lramCodeSection =
-        builder.create<memref::AllocOp>(loc, programSectionLramCodeType, nullptr);
+        memref::AllocOp::create(builder, loc, programSectionLramCodeType, nullptr);
 
     if (failed(
             createTorqCopy(builder, loc, createInvocationOp.getCodeSections()[0], lramCodeSection)
@@ -157,14 +155,12 @@ static void outlineOp(int idx, Operation *op, OpBuilder builder) {
     }
 
     // add the start and wait operations
-    auto startOp = builder.create<torq_hl::StartProgramOp>(
-        loc,
-        /* bound_program = */ createInvocationOp.getInvocation(),
-        /* code_sections = */ ValueRange{lramCodeSection},
-        /* args = */ op->getOperands()
-    );
+    auto startOp = torq_hl::StartProgramOp::create(builder, loc,
+    /* bound_program = */ createInvocationOp.getInvocation(),
+    /* code_sections = */ ValueRange{lramCodeSection},
+    /* args = */ op->getOperands());
 
-    builder.create<torq_hl::WaitProgramOp>(loc, TypeRange{}, startOp.getInvocation());
+    torq_hl::WaitProgramOp::create(builder, loc, TypeRange{}, startOp.getInvocation());
 
     op->erase();
 }

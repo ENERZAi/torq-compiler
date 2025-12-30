@@ -62,7 +62,7 @@ Value createZeroConstant(OpBuilder &b, Location loc, Type elemTy) {
     else {
         llvm_unreachable("unsupported element type for zero constant");
     }
-    return b.create<arith::ConstantOp>(loc, attr).getResult();
+    return arith::ConstantOp::create(b, loc, attr).getResult();
 }
 
 std::vector<int32_t>
@@ -186,10 +186,10 @@ Value transposeValue(
     }
     auto outputType = transposeType(input.getType(), permutation);
     auto initValue =
-        rewriter.create<tensor::EmptyOp>(loc, outputType.getShape(), outputType.getElementType())
+        tensor::EmptyOp::create(rewriter, loc, outputType.getShape(), outputType.getElementType())
             .getResult();
 
-    auto transposeOp = rewriter.create<linalg::TransposeOp>(loc, input, initValue, permutation);
+    auto transposeOp = linalg::TransposeOp::create(rewriter, loc, input, initValue, permutation);
     return transposeOp.getResult()[0];
 }
 
@@ -199,31 +199,25 @@ Value rescaleValue(Value input, int divFactor, int bias, Location loc, PatternRe
     auto elementType = inputType.getElementType();
     auto outputType = RankedTensorType::get(inputType.getShape(), elementType);
     auto initValue =
-        rewriter.create<tensor::EmptyOp>(loc, outputType.getShape(), outputType.getElementType())
+        tensor::EmptyOp::create(rewriter, loc, outputType.getShape(), outputType.getElementType())
             .getResult();
     size_t rank = inputType.getRank();
     SmallVector<AffineMap> maps{2, AffineMap::getMultiDimIdentityMap(rank, rewriter.getContext())};
     SmallVector<utils::IteratorType> iteratorTypes{rank, utils::IteratorType::parallel};
 
-    auto genericOp = rewriter.create<linalg::GenericOp>(
-        loc, TypeRange{outputType}, ValueRange{input}, ValueRange{initValue}, maps,
-        iteratorTypes, /*rewriter.getStringAttr("parallel"),*/
-        /* doc = */ "", /* library_call = */ "",
-        [divFactor, bias](OpBuilder &b, Location loc, ValueRange args) {
-            // args[0] is input value
-            // Multiply by scale factor and add bias
-            auto scaled = b.create<arith::DivSIOp>(
-                loc, args[0],
-                b.create<arith::ConstantOp>(loc, b.getIntegerAttr(args[0].getType(), divFactor))
-            );
-            auto biased = b.create<arith::AddIOp>(
-                loc, scaled,
-                b.create<arith::ConstantOp>(loc, b.getIntegerAttr(args[0].getType(), bias))
-            );
-            SmallVector<Value> yieldValues{biased};
-            b.create<linalg::YieldOp>(loc, yieldValues);
-        }
-    );
+    auto genericOp = linalg::GenericOp::create(rewriter, loc, TypeRange{outputType}, ValueRange{input}, ValueRange{initValue}, maps,
+    iteratorTypes, /*rewriter.getStringAttr("parallel"),*/
+    /* doc = */ "", /* library_call = */ "",
+    [divFactor, bias](OpBuilder &b, Location loc, ValueRange args) {
+        // args[0] is input value
+        // Multiply by scale factor and add bias
+        auto scaled = arith::DivSIOp::create(b, loc, args[0],
+        arith::ConstantOp::create(b, loc, b.getIntegerAttr(args[0].getType(), divFactor)));
+        auto biased = arith::AddIOp::create(b, loc, scaled,
+        arith::ConstantOp::create(b, loc, b.getIntegerAttr(args[0].getType(), bias)));
+        SmallVector<Value> yieldValues{biased};
+        linalg::YieldOp::create(b, loc, yieldValues);
+    });
     return genericOp.getResult(0);
 }
 
@@ -268,12 +262,12 @@ Value convertNHWCtoNCHW(Value input, Location loc, PatternRewriter &rewriter) {
     auto outputType = convertTypeNHWCtoNCHW(input.getType());
 
     auto initValue =
-        rewriter.create<tensor::EmptyOp>(loc, outputType.getShape(), outputType.getElementType())
+        tensor::EmptyOp::create(rewriter, loc, outputType.getShape(), outputType.getElementType())
             .getResult();
 
     SmallVector<int64_t> permutation = {0, 3, 1, 2};
 
-    auto transposeOp = rewriter.create<linalg::TransposeOp>(loc, input, initValue, permutation);
+    auto transposeOp = linalg::TransposeOp::create(rewriter, loc, input, initValue, permutation);
 
     return transposeOp.getResult()[0];
 }
@@ -283,12 +277,12 @@ Value convertNCHWtoNHWC(Value input, Location loc, PatternRewriter &rewriter) {
     auto outputType = convertTypeNCHWtoNHWC(input.getType());
 
     auto initValue =
-        rewriter.create<tensor::EmptyOp>(loc, outputType.getShape(), outputType.getElementType())
+        tensor::EmptyOp::create(rewriter, loc, outputType.getShape(), outputType.getElementType())
             .getResult();
 
     SmallVector<int64_t> permutation = {0, 2, 3, 1};
 
-    auto transposeOp = rewriter.create<linalg::TransposeOp>(loc, input, initValue, permutation);
+    auto transposeOp = linalg::TransposeOp::create(rewriter, loc, input, initValue, permutation);
 
     return transposeOp.getResult()[0];
 }
@@ -311,12 +305,12 @@ Value convertNHCtoNCH(Value input, Location loc, PatternRewriter &rewriter) {
     auto outputType = convertTypeNHCtoNCH(input.getType());
 
     auto initValue =
-        rewriter.create<tensor::EmptyOp>(loc, outputType.getShape(), outputType.getElementType())
+        tensor::EmptyOp::create(rewriter, loc, outputType.getShape(), outputType.getElementType())
             .getResult();
 
     SmallVector<int64_t> permutation = {0, 2, 1};
 
-    auto transposeOp = rewriter.create<linalg::TransposeOp>(loc, input, initValue, permutation);
+    auto transposeOp = linalg::TransposeOp::create(rewriter, loc, input, initValue, permutation);
 
     return transposeOp.getResult()[0];
 }
@@ -327,8 +321,7 @@ Value convertNCHtoNHC(Value input, Location loc, PatternRewriter &rewriter) {
 
 Value createInitTensorNCHW(Operation *srcOp, PatternRewriter &rewriter) {
     auto nchwType = convertTypeNHWCtoNCHW(srcOp->getResult(0).getType());
-    return rewriter
-        .create<tensor::EmptyOp>(srcOp->getLoc(), nchwType.getShape(), nchwType.getElementType())
+    return tensor::EmptyOp::create(rewriter, srcOp->getLoc(), nchwType.getShape(), nchwType.getElementType())
         .getResult();
 }
 
@@ -627,7 +620,7 @@ Value convertScalarToRankedTensor(Value &input, Location loc, PatternRewriter &r
     else {
         assert(false && "Cannot convert Scalar to RankedTensor");
     }
-    input_new = rewriter.create<arith::ConstantOp>(loc, tensorType, denseAttr);
+    input_new = arith::ConstantOp::create(rewriter, loc, tensorType, denseAttr);
     return input_new;
 }
 

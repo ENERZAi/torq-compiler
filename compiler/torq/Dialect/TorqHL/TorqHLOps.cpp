@@ -318,9 +318,7 @@ class FoldXramToDefaultConversion : public OpRewritePattern<ConvertOp> {
 
             rewriter.setInsertionPoint(op);
 
-            auto newEmptyOp = rewriter.create<tensor::EmptyOp>(
-                emptyOp.getLoc(), op.getOutput().getType(), emptyOp.getOperands()
-            );
+            auto newEmptyOp = tensor::EmptyOp::create(rewriter, emptyOp.getLoc(), op.getOutput().getType(), emptyOp.getOperands());
 
             rewriter.replaceOp(op, newEmptyOp.getResult());
 
@@ -340,9 +338,7 @@ class FoldXramToDefaultConversion : public OpRewritePattern<ConvertOp> {
 
             rewriter.setInsertionPoint(dsOp);
 
-            auto newEmptyOp = rewriter.create<tensor::EmptyOp>(
-                emptyOp.getLoc(), op.getOutput().getType(), emptyOp.getOperands()
-            );
+            auto newEmptyOp = tensor::EmptyOp::create(rewriter, emptyOp.getLoc(), op.getOutput().getType(), emptyOp.getOperands());
 
             rewriter.modifyOpInPlace(dsOp, [&] {
                 dsOp.setDpsInitOperand(0, newEmptyOp.getResult());

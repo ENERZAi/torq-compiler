@@ -810,7 +810,7 @@ VirtualBuffer::swapIn(IRRewriter &rewriter, Location loc, bool allowDefragment) 
     });
 
     // create a buffer where to swap in the value
-    auto physicalValueOp = rewriter.create<memref::AllocOp>(loc, value().getType(), ValueRange{});
+    auto physicalValueOp = memref::AllocOp::create(rewriter, loc, value().getType(), ValueRange{});
 
     if (clAnnotateVirtualBufferIds) {
         physicalValueOp->setAttr(VIRTUAL_OBJECT_ID_ATTR_NAME, rewriter.getIndexArrayAttr({id()}));
@@ -818,13 +818,11 @@ VirtualBuffer::swapIn(IRRewriter &rewriter, Location loc, bool allowDefragment) 
 
     // swap in the value by overwriting all the eventual alignment bytes in the newly allocated
     // physical buffer
-    rewriter.create<torq_hl::LoadOp>(
-        loc, physicalValueOp, swappedOutValue_, SmallVector<int64_t>{}, SmallVector<int64_t>{},
-        getEncodedTotalSizeBytes(physicalValueOp.getType()), true
-    );
+    torq_hl::LoadOp::create(rewriter, loc, physicalValueOp, swappedOutValue_, SmallVector<int64_t>{}, SmallVector<int64_t>{},
+    getEncodedTotalSizeBytes(physicalValueOp.getType()), true);
 
     // deallocate the buffer from which we just swapped in the data
-    rewriter.create<memref::DeallocOp>(loc, swappedOutValue_);
+    memref::DeallocOp::create(rewriter, loc, swappedOutValue_);
 
     // drop reference to the swapped out value
     swappedOutValue_ = nullptr;
@@ -863,7 +861,7 @@ void VirtualBuffer::swapOut(IRRewriter &rewriter, Location loc) {
         cloneEncodingWithNewMemorySpace(physicalValueEncoding, vm().swapMemSpace);
 
     auto swappedOutType = createMemRefTypeWithEncoding(physicalValueType, swappedOutEncoding);
-    auto swappedOutAllocOp = rewriter.create<memref::AllocOp>(loc, swappedOutType, ValueRange{});
+    auto swappedOutAllocOp = memref::AllocOp::create(rewriter, loc, swappedOutType, ValueRange{});
 
     swappedOutValue_ = swappedOutAllocOp;
 
@@ -882,10 +880,8 @@ void VirtualBuffer::swapOut(IRRewriter &rewriter, Location loc) {
 
     // swap out the value by overwriting all the eventual alignment bytes in the newly allocated
     // swap out buffer
-    rewriter.create<torq_hl::StoreOp>(
-        loc, swappedOutValue_, (*maybePhysicalBuffer_)->value(), SmallVector<int64_t>{},
-        SmallVector<int64_t>{}, getEncodedTotalSizeBytes(swappedOutType), true
-    );
+    torq_hl::StoreOp::create(rewriter, loc, swappedOutValue_, (*maybePhysicalBuffer_)->value(), SmallVector<int64_t>{},
+    SmallVector<int64_t>{}, getEncodedTotalSizeBytes(swappedOutType), true);
 
     // make sure all the aliases pointing to the physical buffer are invalidated
     for (auto &alias : aliases()) {
@@ -893,7 +889,7 @@ void VirtualBuffer::swapOut(IRRewriter &rewriter, Location loc) {
     }
 
     // deallocate the buffer we just swapped out
-    rewriter.create<memref::DeallocOp>(loc, (*maybePhysicalBuffer_)->value());
+    memref::DeallocOp::create(rewriter, loc, (*maybePhysicalBuffer_)->value());
     vm().physicalMemory.remove(*this);
     maybePhysicalBuffer_ = std::nullopt;
 }

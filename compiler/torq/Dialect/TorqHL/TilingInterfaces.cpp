@@ -45,7 +45,7 @@ getIndicesForAccess(OpBuilder &b, Location loc, AffineMap indexingMap, ValueRang
     indices.reserve(indexingMap.getNumResults());
     for (auto result : indexingMap.getResults()) {
         AffineMap m = AffineMap::get(indexingMap.getNumDims(), indexingMap.getNumSymbols(), result);
-        Value v = b.create<affine::AffineApplyOp>(loc, m, ivs);
+        Value v = affine::AffineApplyOp::create(b, loc, m, ivs);
         indices.push_back(v);
     }
     return indices;
@@ -72,9 +72,7 @@ inlinePayload(OpBuilder &b, LinalgOp linalgOp, ValueRange ivs, ValueRange argVal
         Value toStore = map.lookupOrDefault(operand.value());
         OpOperand *storeInto = linalgOp.getDpsInitOperand(operand.index());
         auto indices = getIndicesForAccess(b, loc, linalgOp.getMatchingIndexingMap(storeInto), ivs);
-        b.create<memref::StoreOp>(
-            loc, toStore, linalgOp.getDpsInitOperand(operand.index())->get(), indices
-        );
+        memref::StoreOp::create(b, loc, toStore, linalgOp.getDpsInitOperand(operand.index())->get(), indices);
     }
     return success();
 }
@@ -299,7 +297,7 @@ struct LinalgOpTilingInterface
             SmallVector<Value> indices = getIndicesForAccess(
                 builder, linalgOpLoc, linalgOp.getMatchingIndexingMap(&operand), ivs
             );
-            Value load = builder.create<memref::LoadOp>(linalgOpLoc, operand.get(), indices);
+            Value load = memref::LoadOp::create(builder, linalgOpLoc, operand.get(), indices);
             indexedValues.push_back(load);
         }
 
@@ -361,15 +359,11 @@ struct LinalgOpPartialReductionInterface
                 int64_t dim = oldShape[oldIdx];
                 newOutputShape.push_back(dim);
                 if (ShapedType::isDynamic(dim))
-                    dynamicDims.push_back(b.create<tensor::DimOp>(
-                        loc, linalgOp.getDpsInitOperand(initIdx)->get(), oldIdx
-                    ));
+                    dynamicDims.push_back(tensor::DimOp::create(b, loc, linalgOp.getDpsInitOperand(initIdx)->get(), oldIdx));
             }
-            Value emptyTensor = b.create<tensor::EmptyOp>(
-                loc, newOutputShape, linalgOp.getRegionOutputArgs()[initIdx].getType(), dynamicDims
-            );
-            Value constantOp = b.create<arith::ConstantOp>(loc, *identity);
-            auto identityTensor = b.create<linalg::FillOp>(loc, constantOp, emptyTensor);
+            Value emptyTensor = tensor::EmptyOp::create(b, loc, newOutputShape, linalgOp.getRegionOutputArgs()[initIdx].getType(), dynamicDims);
+            Value constantOp = arith::ConstantOp::create(b, loc, *identity);
+            auto identityTensor = linalg::FillOp::create(b, loc, constantOp, emptyTensor);
             inits.push_back(identityTensor.getResult(0));
         }
 
@@ -413,9 +407,7 @@ struct LinalgOpPartialReductionInterface
                 initSizes.push_back(sizes[dim.getPosition()]);
             }
             // TODO: Use SubsetExtractOpInterface here once available.
-            auto extractSlice = b.create<tensor::ExtractSliceOp>(
-                loc, valueToTile, initOffset, initSizes, initStride
-            );
+            auto extractSlice = tensor::ExtractSliceOp::create(b, loc, valueToTile, initOffset, initSizes, initStride);
             tiledInits.push_back(extractSlice);
         }
 
@@ -436,10 +428,8 @@ struct LinalgOpPartialReductionInterface
             newIteratorTypes[dim] = utils::IteratorType::parallel;
 
         // Step 4. Create the new generic op.
-        auto genericOp = b.create<GenericOp>(
-            loc, ValueRange(tiledInits).getTypes(), tiledInputs, tiledInits, newMaps,
-            newIteratorTypes
-        );
+        auto genericOp = GenericOp::create(b, loc, ValueRange(tiledInits).getTypes(), tiledInputs, tiledInits, newMaps,
+        newIteratorTypes);
         IRMapping mapping;
         op->getRegion(0).cloneInto(&genericOp.getRegion(), genericOp.getRegion().begin(), mapping);
         return TilingResult{
@@ -454,25 +444,23 @@ struct LinalgOpPartialReductionInterface
     ) const {
         auto linalgOp = cast<LinalgOp>(op);
         SmallVector<int64_t> reductionDimsInt64(reductionDims.begin(), reductionDims.end());
-        auto reduction = b.create<linalg::ReduceOp>(
-            loc, partialReduce, linalgOp.getDpsInits(), reductionDimsInt64,
-            [&linalgOp](OpBuilder &b, Location loc, ValueRange inputs) {
-                int64_t numInits = linalgOp.getNumDpsInits();
-                SmallVector<Value> yieldedValues;
-                for (int idx : llvm::seq<int>(0, numInits)) {
-                    // Get the combiner op.
-                    SmallVector<Operation *, 4> combinerOps;
-                    matchReduction(linalgOp.getRegionOutputArgs(), idx, combinerOps);
-                    Operation *clonedReductionOp = b.clone(*combinerOps[0]);
-                    // Combine the input at idx and output at numInits + idx.
-                    clonedReductionOp->setOperand(0, inputs[idx]);
-                    clonedReductionOp->setOperand(1, inputs[numInits + idx]);
-                    // Yield.
-                    yieldedValues.push_back(clonedReductionOp->getResult(0));
-                }
-                b.create<linalg::YieldOp>(loc, yieldedValues);
+        auto reduction = linalg::ReduceOp::create(b, loc, partialReduce, linalgOp.getDpsInits(), reductionDimsInt64,
+        [&linalgOp](OpBuilder &b, Location loc, ValueRange inputs) {
+            int64_t numInits = linalgOp.getNumDpsInits();
+            SmallVector<Value> yieldedValues;
+            for (int idx : llvm::seq<int>(0, numInits)) {
+                // Get the combiner op.
+                SmallVector<Operation *, 4> combinerOps;
+                matchReduction(linalgOp.getRegionOutputArgs(), idx, combinerOps);
+                Operation *clonedReductionOp = b.clone(*combinerOps[0]);
+                // Combine the input at idx and output at numInits + idx.
+                clonedReductionOp->setOperand(0, inputs[idx]);
+                clonedReductionOp->setOperand(1, inputs[numInits + idx]);
+                // Yield.
+                yieldedValues.push_back(clonedReductionOp->getResult(0));
             }
-        );
+            linalg::YieldOp::create(b, loc, yieldedValues);
+        });
         return MergeResult{
             {reduction.getOperation()},
             llvm::map_to_vector(reduction->getResults(), [](OpResult r) -> Value { return r; })

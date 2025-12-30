@@ -494,24 +494,18 @@ Value convertTensorToEncoding(
     auto dstType = createRankedTensorTypeWithEncoding(value.getType(), encodingAttr);
     Value emptyValue = initValue
                            ? initValue
-                           : builder.create<tensor::EmptyOp>(value.getLoc(), dstType, ValueRange{});
+                           : tensor::EmptyOp::create(builder, value.getLoc(), dstType, ValueRange{});
 
     if (requirements) {
 
-        return builder
-            .create<torq_hl::ConvertOp>(
-                value.getLoc(), dstType, emptyValue, intermediateValue,
-                /* requirements = */ requirements->toAttr(value.getContext()),
-                /* encoding = */ nullptr
-            )
+        return torq_hl::ConvertOp::create(builder, value.getLoc(), dstType, emptyValue, intermediateValue,
+        /* requirements = */ requirements->toAttr(value.getContext()),
+        /* encoding = */ nullptr)
             .getResult(0);
     }
     else {
-        return builder
-            .create<torq_hl::ConvertOp>(
-                value.getLoc(), dstType, emptyValue, intermediateValue,
-                /* requirements = */ nullptr, /* encoding = */ encodingAttr
-            )
+        return torq_hl::ConvertOp::create(builder, value.getLoc(), dstType, emptyValue, intermediateValue,
+        /* requirements = */ nullptr, /* encoding = */ encodingAttr)
             .getResult(0);
     }
 }
@@ -552,13 +546,10 @@ Value convertTensorToType(
             convertTensorToEncoding(builder, value, intermediateEncoding, std::nullopt, initValue);
     }
 
-    Value emptyValue = builder.create<tensor::EmptyOp>(value.getLoc(), targetType, ValueRange{});
+    Value emptyValue = tensor::EmptyOp::create(builder, value.getLoc(), targetType, ValueRange{});
 
-    return builder
-        .create<torq_hl::ConvertOp>(
-            value.getLoc(), targetType, emptyValue, intermediateValue,
-            /* requirements = */ nullptr, /* encoding = */ targetEncoding
-        )
+    return torq_hl::ConvertOp::create(builder, value.getLoc(), targetType, emptyValue, intermediateValue,
+    /* requirements = */ nullptr, /* encoding = */ targetEncoding)
         .getResult(0);
 }
 

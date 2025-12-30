@@ -118,7 +118,7 @@ static FailureOr<Value> defaultAllocationFn(
         if (llvm::isa<IREE::HAL::DescriptorTypeAttr>(storage))
             type = MemRefType::get(type.getShape(), type.getElementType(), type.getLayout());
     }
-    return builder.create<memref::AllocOp>(loc, type, dynamicSizes).getResult();
+    return memref::AllocOp::create(builder, loc, type, dynamicSizes).getResult();
 }
 static LogicalResult defaultMemCpyFn(OpBuilder &builder, Location loc, Value from, Value to) {
     Operation *copyOp = createLinalgCopyOp(builder, loc, from, to);

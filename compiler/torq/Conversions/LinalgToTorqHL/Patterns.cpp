@@ -561,10 +561,8 @@ struct TransposeOpConversionRewrite : public OpRewritePattern<linalg::TransposeO
             return success();
         }
 
-        auto trOp = rewriter.create<torq_hl::TransposeOp>(
-            srcOp.getLoc(), srcOp.getResult()[0].getType(), srcOp.getInit(),
-            srcOp.getPermutationAttr(), srcOp.getInput()
-        );
+        auto trOp = torq_hl::TransposeOp::create(rewriter, srcOp.getLoc(), srcOp.getResult()[0].getType(), srcOp.getInit(),
+        srcOp.getPermutationAttr(), srcOp.getInput());
         rewriter.replaceOp(srcOp, trOp.getOutput());
 
         return success();
@@ -875,12 +873,11 @@ struct ReduceOpConversion : public OpConversionPattern<linalg::ReduceOp> {
             auto initType = RankedTensorType::get(initShape, srcOutputType.getElementType());
 
             auto initValue =
-                rewriter
-                    .create<tensor::EmptyOp>(loc, initType.getShape(), initType.getElementType())
+                tensor::EmptyOp::create(rewriter, loc, initType.getShape(), initType.getElementType())
                     .getResult();
 
             auto transposeOp =
-                rewriter.create<linalg::TransposeOp>(loc, input, initValue, permutation);
+                linalg::TransposeOp::create(rewriter, loc, input, initValue, permutation);
 
             input = transposeOp.getResult()[0];
             axis = 0;
@@ -967,7 +964,7 @@ static Value create1DimTensorFromScalar(
             return {};
         }
 
-        return rewriter.create<arith::ConstantOp>(constOp.getLoc(), constType, value).getResult();
+        return arith::ConstantOp::create(rewriter, constOp.getLoc(), constType, value).getResult();
     }
     else if (elementType.isBF16() || elementType.isF32()) { // TODO: add F32 later
 
@@ -995,7 +992,7 @@ static Value create1DimTensorFromScalar(
             return {};
         }
 
-        return rewriter.create<arith::ConstantOp>(constOp.getLoc(), constType, value).getResult();
+        return arith::ConstantOp::create(rewriter, constOp.getLoc(), constType, value).getResult();
     }
     else {
         return {};
@@ -1071,20 +1068,14 @@ class MulOpPattern : public OpRewritePattern<linalg::GenericOp> {
             ArrayRef<int64_t> in1Shape = input1Type.getShape();
             auto inType = RankedTensorType::get(in1Shape, IntegerType::get(srcOp.getContext(), 16));
 
-            input1 = rewriter
-                         .create<torq_hl::ActOp>(
-                             srcOp.getLoc(), inType, createInitTensor(srcOp, rewriter, inType),
-                             "i2i", 0, 0, 0, 0, APFloat(llvm::APFloat::IEEEsingle(), "0.0"),
-                             APFloat(llvm::APFloat::IEEEsingle(), "0.0"), input1
-                         )
+            input1 = torq_hl::ActOp::create(rewriter, srcOp.getLoc(), inType, createInitTensor(srcOp, rewriter, inType),
+            "i2i", 0, 0, 0, 0, APFloat(llvm::APFloat::IEEEsingle(), "0.0"),
+            APFloat(llvm::APFloat::IEEEsingle(), "0.0"), input1)
                          .getResult(0);
 
-            input2 = rewriter
-                         .create<torq_hl::ActOp>(
-                             srcOp.getLoc(), inType, createInitTensor(srcOp, rewriter, inType),
-                             "i2i", 0, 0, 0, 0, APFloat(llvm::APFloat::IEEEsingle(), "0.0"),
-                             APFloat(llvm::APFloat::IEEEsingle(), "0.0"), input2
-                         )
+            input2 = torq_hl::ActOp::create(rewriter, srcOp.getLoc(), inType, createInitTensor(srcOp, rewriter, inType),
+            "i2i", 0, 0, 0, 0, APFloat(llvm::APFloat::IEEEsingle(), "0.0"),
+            APFloat(llvm::APFloat::IEEEsingle(), "0.0"), input2)
                          .getResult(0);
         }
 
@@ -1181,7 +1172,7 @@ class AddOpPattern : public OpRewritePattern<linalg::GenericOp> {
             RankedTensorType constType = RankedTensorType::get({1}, elemType);
             DenseElementsAttr value = DenseElementsAttr::get(constType, data.getValue());
             input1 =
-                rewriter.create<arith::ConstantOp>(srcOp.getLoc(), constType, value).getResult();
+                arith::ConstantOp::create(rewriter, srcOp.getLoc(), constType, value).getResult();
 
             return success();
         }
@@ -1371,7 +1362,7 @@ class AddOpPattern : public OpRewritePattern<linalg::GenericOp> {
                 else {
                     return rewriter.notifyMatchFailure(srcOp, "Unsupported constant type");
                 }
-                input1 = rewriter.create<arith::ConstantOp>(srcOp.getLoc(), constType, value)
+                input1 = arith::ConstantOp::create(rewriter, srcOp.getLoc(), constType, value)
                              .getResult();
 
                 bias = {data * sign};
@@ -1783,10 +1774,8 @@ struct BroadcastOpConversion : public OpRewritePattern<linalg::BroadcastOp> {
 
         auto outputType = cast<RankedTensorType>(srcOp.getInit().getType());
 
-        auto op = rewriter.create<torq_hl::BroadcastOp>(
-            srcOp.getLoc(), outputType, createInitTensor(srcOp, rewriter, outputType),
-            srcOp.getDimensionsAttr(), srcOp.getInput()
-        );
+        auto op = torq_hl::BroadcastOp::create(rewriter, srcOp.getLoc(), outputType, createInitTensor(srcOp, rewriter, outputType),
+        srcOp.getDimensionsAttr(), srcOp.getInput());
         rewriter.replaceOp(srcOp, op.getOutput());
 
         return success();
@@ -2073,12 +2062,10 @@ struct RescaleOpConversion : public OpRewritePattern<linalg::GenericOp> {
                          << "weight_data: " << weight_data << ", bias_data: " << bias_data << "\n";
         });
 
-        auto fmaOp = rewriter.create<torq_hl::FMAOp>(
-            srcOp.getLoc(), outputType, createInitTensor(srcOp, rewriter, outputType), outputZp,
-            outputMin, outputMax, shiftFactor,
-            createI16Const(rewriter, srcOp, weights, llvm::ArrayRef<int64_t>{1}),
-            createIConst(rewriter, srcOp, interleave(bias, scale)), input
-        );
+        auto fmaOp = torq_hl::FMAOp::create(rewriter, srcOp.getLoc(), outputType, createInitTensor(srcOp, rewriter, outputType), outputZp,
+        outputMin, outputMax, shiftFactor,
+        createI16Const(rewriter, srcOp, weights, llvm::ArrayRef<int64_t>{1}),
+        createIConst(rewriter, srcOp, interleave(bias, scale)), input);
         rewriter.replaceOp(srcOp, fmaOp.getOutput());
 
         return success();
@@ -2210,10 +2197,8 @@ class ExtractOpPattern : public OpRewritePattern<linalg::GenericOp> {
                     mlir::cast<RankedTensorType>(srcOp.getResult(0).getType()), dataPerm.reverse()
                 );
                 auto transposedValue = transposeValue(cst, dataPerm, srcOp.getLoc(), rewriter);
-                auto out = rewriter.create<syna::torq_hl::GatherOp>(
-                    srcOp.getLoc(), outType, createInitTensor(srcOp, rewriter, outType),
-                    transposedValue, input
-                );
+                auto out = syna::torq_hl::GatherOp::create(rewriter, srcOp.getLoc(), outType, createInitTensor(srcOp, rewriter, outType),
+                transposedValue, input);
                 auto resultTranspose =
                     transposeValue(out.getResult(0), dataPerm.reverse(), srcOp.getLoc(), rewriter);
                 rewriter.replaceOp(srcOp, resultTranspose);
@@ -2254,10 +2239,8 @@ struct GenericToBroadcastOpConversion : public OpRewritePattern<linalg::GenericO
         auto dstTy = genericOp.getDpsInitOperand(0)->get().getType();
         auto dims = *equivalentToBroadcast;
 
-        auto op = rewriter.create<torq_hl::BroadcastOp>(
-            genericOp.getLoc(), dstTy,
-            createInitTensor(genericOp, rewriter, mlir::cast<RankedTensorType>(dstTy)), dims, input
-        );
+        auto op = torq_hl::BroadcastOp::create(rewriter, genericOp.getLoc(), dstTy,
+        createInitTensor(genericOp, rewriter, mlir::cast<RankedTensorType>(dstTy)), dims, input);
         rewriter.replaceOp(genericOp, op.getResults());
         return success();
     }

@@ -161,7 +161,7 @@ class AddBiasPattern : public OpConversionPattern<linalg::GenericOp> {
             rewriter.getContext(), 0, 0, torq_hl::ACT_MIN, torq_hl::ACT_MAX
         );
 
-        auto newOp = rewriter.create<torq_hl::GenericOp>(genericOp.getLoc(), params);
+        auto newOp = torq_hl::GenericOp::create(rewriter, genericOp.getLoc(), params);
 
         rewriter.replaceOp(genericOp, newOp.getResult(1));
 
@@ -260,7 +260,7 @@ class ApplyScalePattern : public OpConversionPattern<linalg::GenericOp> {
         auto scaleType =
             RankedTensorType::get(tosaMultiplierType.getShape(), rewriter.getI32Type());
 
-        auto scaleInitOp = rewriter.create<tensor::EmptyOp>(loc, scaleType, ValueRange{});
+        auto scaleInitOp = tensor::EmptyOp::create(rewriter, loc, scaleType, ValueRange{});
 
         size_t rank = tosaMultiplierType.getRank();
 
@@ -275,41 +275,39 @@ class ApplyScalePattern : public OpConversionPattern<linalg::GenericOp> {
             auto tosaShift = values[1];
 
             auto shiftFactorConst =
-                builder.create<arith::ConstantIntOp>(loc, shiftFactor, builder.getI32Type());
+                arith::ConstantIntOp::create(builder, loc, shiftFactor, builder.getI32Type());
 
             // floatShiftMask = static_cast<double>(1 << shift);
-            auto onei32 = builder.create<arith::ConstantOp>(loc, builder.getI32IntegerAttr(1));
-            auto shiftMask = builder.create<arith::ShLIOp>(loc, onei32, shiftFactorConst);
+            auto onei32 = arith::ConstantOp::create(builder, loc, builder.getI32IntegerAttr(1));
+            auto shiftMask = arith::ShLIOp::create(builder, loc, onei32, shiftFactorConst);
             auto floatShiftMask =
-                builder.create<arith::SIToFPOp>(loc, builder.getF32Type(), shiftMask);
+                arith::SIToFPOp::create(builder, loc, builder.getF32Type(), shiftMask);
 
             // double floatScaleFactor = static_cast<double>(tosaMultiplier[i]) / (1ul <<
             // tosaShift[i]);
             auto floatMultiplier =
-                builder.create<arith::SIToFPOp>(loc, builder.getF32Type(), tosaMultiplier);
-            auto onei64 = builder.create<arith::ConstantOp>(loc, builder.getI64IntegerAttr(1));
+                arith::SIToFPOp::create(builder, loc, builder.getF32Type(), tosaMultiplier);
+            auto onei64 = arith::ConstantOp::create(builder, loc, builder.getI64IntegerAttr(1));
             auto tosaShifti64 =
-                builder.create<arith::ExtSIOp>(loc, builder.getI64Type(), tosaShift);
-            auto tosaMask = builder.create<arith::ShLIOp>(loc, onei64, tosaShifti64);
+                arith::ExtSIOp::create(builder, loc, builder.getI64Type(), tosaShift);
+            auto tosaMask = arith::ShLIOp::create(builder, loc, onei64, tosaShifti64);
             auto tosaFloatMask =
-                builder.create<arith::SIToFPOp>(loc, builder.getF32Type(), tosaMask);
+                arith::SIToFPOp::create(builder, loc, builder.getF32Type(), tosaMask);
             auto floatScaleFactor =
-                builder.create<arith::DivFOp>(loc, floatMultiplier, tosaFloatMask);
+                arith::DivFOp::create(builder, loc, floatMultiplier, tosaFloatMask);
 
             // int_scale_factor = floatScaleFactor * floatShiftMask
             auto floatIntMultiplier =
-                builder.create<arith::MulFOp>(loc, floatScaleFactor, floatShiftMask);
+                arith::MulFOp::create(builder, loc, floatScaleFactor, floatShiftMask);
             auto intScaleFactor =
-                builder.create<arith::FPToSIOp>(loc, builder.getI32Type(), floatIntMultiplier);
+                arith::FPToSIOp::create(builder, loc, builder.getI32Type(), floatIntMultiplier);
 
-            builder.create<linalg::YieldOp>(loc, ValueRange{intScaleFactor});
+            linalg::YieldOp::create(builder, loc, ValueRange{intScaleFactor});
         };
 
-        auto scaleGenericOp = rewriter.create<linalg::GenericOp>(
-            loc, TypeRange{scaleType}, ValueRange{tosaMultiplierValue, tosaShiftValue},
-            ValueRange{scaleInitOp}, maps, iteratorTypes,
-            /* doc = */ "", /* library_call = */ "", regionBuilderFun
-        );
+        auto scaleGenericOp = linalg::GenericOp::create(rewriter, loc, TypeRange{scaleType}, ValueRange{tosaMultiplierValue, tosaShiftValue},
+        ValueRange{scaleInitOp}, maps, iteratorTypes,
+        /* doc = */ "", /* library_call = */ "", regionBuilderFun);
 
         auto result = scaleGenericOp.getResult(0);
 
@@ -423,7 +421,7 @@ class ApplyScalePattern : public OpConversionPattern<linalg::GenericOp> {
             rewriter.getContext(), shiftFactor / 4, zeroPointConst, maxConst, minConst
         );
 
-        auto newOp = rewriter.create<torq_hl::GenericOp>(genericOp.getLoc(), params);
+        auto newOp = torq_hl::GenericOp::create(rewriter, genericOp.getLoc(), params);
 
         rewriter.replaceOp(genericOp, newOp.getResult(1));
 
@@ -473,17 +471,15 @@ class LinalgFillOpPattern : public OpConversionPattern<linalg::FillOp> {
 
         auto pType = RankedTensorType::get(outputType.getShape(), rewriter.getI32Type());
 
-        auto p = rewriter.create<arith::ConstantOp>(
-            op.getLoc(), SplatElementsAttr::get(pType, rewriter.getI32IntegerAttr(0))
-        );
+        auto p = arith::ConstantOp::create(rewriter, op.getLoc(), SplatElementsAttr::get(pType, rewriter.getI32IntegerAttr(0)));
 
         auto dType = RankedTensorType::get({1}, fillConst.getType());
         auto dElements = DenseElementsAttr::get(dType, {fillConst.getValue()});
-        auto dVal = rewriter.create<arith::ConstantOp>(op.getLoc(), dElements);
+        auto dVal = arith::ConstantOp::create(rewriter, op.getLoc(), dElements);
 
         auto bType = RankedTensorType::get({1, 2}, rewriter.getI32Type());
         auto bElements = DenseElementsAttr::get(bType, {APInt(32, 1), APInt(32, 0)});
-        auto bVal = rewriter.create<arith::ConstantOp>(op.getLoc(), bElements);
+        auto bVal = arith::ConstantOp::create(rewriter, op.getLoc(), bElements);
 
         auto outputMap = op.getMatchingIndexingMap(qOperand);
         auto dMap = AffineMap::get(
@@ -511,7 +507,7 @@ class LinalgFillOpPattern : public OpConversionPattern<linalg::FillOp> {
             op.getContext(), torq_hl::ALUOp0Mode::DBYP, torq_hl::ALUOp1Mode::ACC
         );
 
-        auto newOp = rewriter.create<torq_hl::GenericOp>(op.getLoc(), config);
+        auto newOp = torq_hl::GenericOp::create(rewriter, op.getLoc(), config);
 
         rewriter.replaceOp(op, newOp.getResult(1));
 

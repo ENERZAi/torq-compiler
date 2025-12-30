@@ -199,15 +199,13 @@ LogicalResult MatMulPattern::transform(torq_hl::MatMulOp op, PatternRewriter &re
         }
     }
 
-    auto newOp = rewriter.create<torq_hw::SliceTaskOp>(
-        op->getLoc(), "matmul",
-        op.getInput2(),                          // Input tensor
-        op.getInput1(),                          // Weights
-        op.getScaleBias(),                       // BiasScale tensor
-        op.getInit(),                            // Output tensor initializer
-        slice.getCfgAttr(rewriter.getContext()), // Slice configuration
-        slice.getNdls()                          // NDLs
-    );
+    auto newOp = torq_hw::SliceTaskOp::create(rewriter, op->getLoc(), "matmul",
+    op.getInput2(),                          // Input tensor
+    op.getInput1(),                          // Weights
+    op.getScaleBias(),                       // BiasScale tensor
+    op.getInit(),                            // Output tensor initializer
+    slice.getCfgAttr(rewriter.getContext()), // Slice configuration
+    slice.getNdls()                          // NDLs);
     rewriter.replaceOp(op, newOp.getOperation());
 
     return success();

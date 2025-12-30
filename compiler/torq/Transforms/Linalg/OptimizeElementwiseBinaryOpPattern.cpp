@@ -95,9 +95,7 @@ static LogicalResult collapseShapeWithDim(Value &input, int dim, PatternRewriter
     }
 
     auto outType = RankedTensorType::get(squeezedShape, elementType);
-    auto collapseOp = rewriter.create<tensor::CollapseShapeOp>(
-        input.getLoc(), outType, input, ArrayRef<ReassociationIndices>{newShape}
-    );
+    auto collapseOp = tensor::CollapseShapeOp::create(rewriter, input.getLoc(), outType, input, ArrayRef<ReassociationIndices>{newShape});
 
     input = collapseOp.getResult();
 
@@ -193,7 +191,7 @@ broadcastInputs(linalg::LinalgOp srcOp, Value &input1, Value &input2, PatternRew
         std::vector<int64_t> shVec(newShape.begin(), newShape.end());
         Value shValue = createConst(shVec, rewriter, input.getLoc());
         auto reshapeOp =
-            rewriter.create<tensor::ReshapeOp>(input.getLoc(), outType, input, shValue);
+            tensor::ReshapeOp::create(rewriter, input.getLoc(), outType, input, shValue);
 
         return reshapeOp.getResult();
     };
@@ -204,9 +202,7 @@ broadcastInputs(linalg::LinalgOp srcOp, Value &input1, Value &input2, PatternRew
         auto elementType = type.getElementType();
 
         auto outType = RankedTensorType::get(bcastShape, elementType);
-        auto bcastOp = rewriter.create<linalg::BroadcastOp>(
-            srcOp.getLoc(), input, createInitTensor(srcOp, rewriter, outType), dims
-        );
+        auto bcastOp = linalg::BroadcastOp::create(rewriter, srcOp.getLoc(), input, createInitTensor(srcOp, rewriter, outType), dims);
         auto gOp = linalg::generalizeNamedOp(rewriter, bcastOp);
         if (failed(gOp)) {
             return bcastOp.getResults()[0];
@@ -547,9 +543,7 @@ struct ReshapeToCollapseExpand : public OpRewritePattern<tensor::ReshapeOp> {
         }
 
         SmallVector<ReassociationIndices, 1> collapseReassoc = maybeReassoc.value();
-        Value collapsed = rewriter.create<tensor::CollapseShapeOp>(
-            op.getLoc(), collapsedType, op.getSource(), collapseReassoc
-        );
+        Value collapsed = tensor::CollapseShapeOp::create(rewriter, op.getLoc(), collapsedType, op.getSource(), collapseReassoc);
         auto finalOp = collapsed;
 
         // Expand (N) -> (1xN)
@@ -561,9 +555,7 @@ struct ReshapeToCollapseExpand : public OpRewritePattern<tensor::ReshapeOp> {
             }
             SmallVector<ReassociationIndices, 1> expandReassoc = maybeReassoc.value();
 
-            Value expanded = rewriter.create<tensor::ExpandShapeOp>(
-                op.getLoc(), dstType, collapsed, expandReassoc
-            );
+            Value expanded = tensor::ExpandShapeOp::create(rewriter, op.getLoc(), dstType, collapsed, expandReassoc);
             finalOp = expanded;
         }
 

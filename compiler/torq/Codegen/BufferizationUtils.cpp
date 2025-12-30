@@ -90,13 +90,11 @@ LogicalResult createHostCopyOp(OpBuilder &builder, Location loc, Value from, Val
     }
 
     // Create a host copy operation
-    builder.create<torq_hl::HostCopyOp>(
-        loc, to, from,
-        /*inputStridesBytes=*/fromStridesBytes,
-        /*outputStridesBytes=*/toStridesBytes,
-        /*shape=*/shape,
-        /*elementSizeBytes=*/contiguousElementsSizeBytes
-    );
+    torq_hl::HostCopyOp::create(builder, loc, to, from,
+    /*inputStridesBytes=*/fromStridesBytes,
+    /*outputStridesBytes=*/toStridesBytes,
+    /*shape=*/shape,
+    /*elementSizeBytes=*/contiguousElementsSizeBytes);
 
     return success();
 }
@@ -115,13 +113,11 @@ static LogicalResult createStoreOp(OpBuilder &builder, Location loc, Value from,
             fromType.getShape(), fromType.getElementType(), nullptr, fromContiguousEncoding
         );
         auto contiguousFrom =
-            builder.create<memref::AllocOp>(loc, contiguousFromType, ValueRange{});
+            memref::AllocOp::create(builder, loc, contiguousFromType, ValueRange{});
 
         // convert the non-contiguous input data into the contiguous buffer
-        builder.create<torq_hl::ConvertOp>(
-            loc, TypeRange{}, contiguousFrom, from,
-            /*requirements=*/nullptr, /*encoding=*/fromContiguousEncoding
-        );
+        torq_hl::ConvertOp::create(builder, loc, TypeRange{}, contiguousFrom, from,
+        /*requirements=*/nullptr, /*encoding=*/fromContiguousEncoding);
 
         from = contiguousFrom;
         fromType = contiguousFromType;
@@ -146,7 +142,7 @@ static LogicalResult createStoreOp(OpBuilder &builder, Location loc, Value from,
         auto contiguousToType = MemRefType::get(
             fromType.getShape(), fromType.getElementType(), nullptr, toContiguousEncoding
         );
-        auto contiguousTo = builder.create<memref::AllocOp>(loc, contiguousToType, ValueRange{});
+        auto contiguousTo = memref::AllocOp::create(builder, loc, contiguousToType, ValueRange{});
 
         // store the data to the contiguous buffer
         if (failed(createStoreOp(builder, loc, from, contiguousTo))) {
@@ -162,13 +158,11 @@ static LogicalResult createStoreOp(OpBuilder &builder, Location loc, Value from,
     }
     else {
         // store the contiguous buffer into the destination
-        builder.create<torq_hl::StoreOp>(
-            loc, to, from,
-            /*outputStridesBytes=*/builder.getDenseI64ArrayAttr(toStridesBytes),
-            /*shape=*/builder.getDenseI64ArrayAttr(shape),
-            /*elementSizeBytes=*/builder.getI64IntegerAttr(contiguousElementsSizeBytes),
-            /*unsafe=*/builder.getBoolAttr(false)
-        );
+        torq_hl::StoreOp::create(builder, loc, to, from,
+        /*outputStridesBytes=*/builder.getDenseI64ArrayAttr(toStridesBytes),
+        /*shape=*/builder.getDenseI64ArrayAttr(shape),
+        /*elementSizeBytes=*/builder.getI64IntegerAttr(contiguousElementsSizeBytes),
+        /*unsafe=*/builder.getBoolAttr(false));
     }
 
     return success();
@@ -192,7 +186,7 @@ static LogicalResult createLoadOp(OpBuilder &builder, Location loc, Value from, 
             fromType.getShape(), fromType.getElementType(), nullptr, toContiguousEncoding
         );
 
-        contiguousTo = builder.create<memref::AllocOp>(loc, contiguousToType, ValueRange{});
+        contiguousTo = memref::AllocOp::create(builder, loc, contiguousToType, ValueRange{});
     }
 
     // compute the strides required to perform the load
@@ -216,7 +210,7 @@ static LogicalResult createLoadOp(OpBuilder &builder, Location loc, Value from, 
             fromType.getShape(), fromType.getElementType(), nullptr, fromContiguousEncoding
         );
         auto contiguousFrom =
-            builder.create<memref::AllocOp>(loc, contiguousFromType, ValueRange{});
+            memref::AllocOp::create(builder, loc, contiguousFromType, ValueRange{});
 
         // do an host copy of source data into the contiguous XRAM buffer
         if (failed(createHostCopyOp(builder, loc, contiguousFrom, from))) {
@@ -231,32 +225,26 @@ static LogicalResult createLoadOp(OpBuilder &builder, Location loc, Value from, 
     else {
 
         // perform the copy
-        builder.create<torq_hl::LoadOp>(
-            loc, contiguousTo, from,
-            /*inputStridesBytes=*/builder.getDenseI64ArrayAttr(fromStridesBytes),
-            /*shape=*/builder.getDenseI64ArrayAttr(shape),
-            /*elementSizeBytes=*/builder.getI64IntegerAttr(contiguousElementsSizeBytes),
-            /*unsafe=*/builder.getBoolAttr(false)
-        );
+        torq_hl::LoadOp::create(builder, loc, contiguousTo, from,
+        /*inputStridesBytes=*/builder.getDenseI64ArrayAttr(fromStridesBytes),
+        /*shape=*/builder.getDenseI64ArrayAttr(shape),
+        /*elementSizeBytes=*/builder.getI64IntegerAttr(contiguousElementsSizeBytes),
+        /*unsafe=*/builder.getBoolAttr(false));
     }
 
     // convert the contiguous input data into the non-contiguous buffer if necessary
     if (contiguousTo != to) {
 
-        builder.create<torq_hl::ConvertOp>(
-            loc, TypeRange{}, to, contiguousTo,
-            /*requirements=*/nullptr, /* encoding=*/getEncoding(toType)
-        );
+        torq_hl::ConvertOp::create(builder, loc, TypeRange{}, to, contiguousTo,
+        /*requirements=*/nullptr, /* encoding=*/getEncoding(toType));
     }
 
     return success();
 }
 
 LogicalResult createLramToLramCopy(OpBuilder &builder, Location loc, Value from, Value to) {
-    builder.create<torq_hl::ConvertOp>(
-        loc, TypeRange{}, to, from,
-        /* requirements = */ nullptr, /* encoding= */ getEncoding(cast<ShapedType>(to.getType()))
-    );
+    torq_hl::ConvertOp::create(builder, loc, TypeRange{}, to, from,
+    /* requirements = */ nullptr, /* encoding= */ getEncoding(cast<ShapedType>(to.getType())));
     return success();
 }
 
@@ -285,7 +273,7 @@ LogicalResult createTorqCopy(OpBuilder &builder, Location loc, Value from, Value
         return createLramToLramCopy(builder, loc, from, to);
     }
     else {
-        builder.create<memref::CopyOp>(loc, from, to);
+        memref::CopyOp::create(builder, loc, from, to);
         return success();
     }
 }
@@ -306,7 +294,7 @@ FailureOr<Value> createTorqAllocation(
         llvm::report_fatal_error("Unsupported non-dense encoding");
     }
 
-    return builder.create<memref::AllocOp>(loc, memRef, /*size=*/nullptr).getResult();
+    return memref::AllocOp::create(builder, loc, memRef, /*size=*/nullptr).getResult();
 }
 
 } // namespace mlir::syna::torq

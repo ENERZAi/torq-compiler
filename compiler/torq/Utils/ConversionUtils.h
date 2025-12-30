@@ -18,8 +18,8 @@ namespace mlir::syna::torq {
 SmallVector<OpFoldResult> createVector(::llvm::ArrayRef<int64_t> values, PatternRewriter &rewriter);
 
 template <typename T, typename R> Value createInitTensor(T &srcOp, R &rewriter) {
-    return rewriter
-        .template create<mlir::tensor::EmptyOp>(
+    return 
+        mlir::tensor::EmptyOp::create(rewriter,
             srcOp.getLoc(), srcOp.getResult().getType().getShape(),
             srcOp.getResult().getType().getElementType()
         )
@@ -28,14 +28,13 @@ template <typename T, typename R> Value createInitTensor(T &srcOp, R &rewriter) 
 
 inline Value
 createInitTensor(Location loc, RankedTensorType type, ConversionPatternRewriter &rewriter) {
-    return rewriter.create<mlir::tensor::EmptyOp>(loc, type.getShape(), type.getElementType())
+    return mlir::tensor::EmptyOp::create(rewriter, loc, type.getShape(), type.getElementType())
         .getResult();
 }
 
 template <typename T, typename R>
 Value createInitTensor(T &srcOp, R &rewriter, RankedTensorType type) {
-    return rewriter
-        .template create<mlir::tensor::EmptyOp>(
+    return mlir::tensor::EmptyOp::create(rewriter,
             srcOp.getLoc(), type.getShape(), type.getElementType()
         )
         .getResult();
@@ -126,7 +125,7 @@ Value createConst(const std::vector<T> &values, OpBuilder &builder, Location loc
         auto type = RankedTensorType::get(values.size(), getMLIRType<T>(builder.getContext()));
         denseAttr = DenseIntElementsAttr::get(type, values);
     }
-    return builder.create<arith::ConstantOp>(loc, denseAttr);
+    return arith::ConstantOp::create(builder,loc, denseAttr);
 }
 
 // Create a constant op from a DenseIntOrFPElementsAttr
@@ -134,13 +133,13 @@ inline Value createConst(DenseIntOrFPElementsAttr denseAttr, OpBuilder &builder,
     if (!denseAttr) {
         return {};
     }
-    return builder.create<mlir::arith::ConstantOp>(loc, denseAttr);
+    return mlir::arith::ConstantOp::create(builder, loc, denseAttr);
 }
 
 template <typename R, class T>
 arith::ConstantOp
 createI8Const(R &rewriter, T &op, ArrayRef<int8_t> values, llvm::ArrayRef<int64_t> shape) {
-    return rewriter.template create<arith::ConstantOp>(
+    return arith::ConstantOp::create(rewriter,
         op.getLoc(), DenseIntElementsAttr::get(
                          RankedTensorType::get(shape, IntegerType::get(op.getContext(), 8)), values
                      )
@@ -150,7 +149,7 @@ createI8Const(R &rewriter, T &op, ArrayRef<int8_t> values, llvm::ArrayRef<int64_
 template <typename R, class T>
 arith::ConstantOp
 createI16Const(R &rewriter, T &op, ArrayRef<int16_t> values, llvm::ArrayRef<int64_t> shape) {
-    return rewriter.template create<arith::ConstantOp>(
+    return arith::ConstantOp::create(rewriter,
         op.getLoc(), DenseIntElementsAttr::get(
                          RankedTensorType::get(shape, IntegerType::get(op.getContext(), 16)), values
                      )
@@ -159,7 +158,7 @@ createI16Const(R &rewriter, T &op, ArrayRef<int16_t> values, llvm::ArrayRef<int6
 
 template <typename R, class T>
 arith::ConstantOp createI16Const(R &rewriter, T &op, ArrayRef<int16_t> values) {
-    return rewriter.template create<arith::ConstantOp>(
+    return arith::ConstantOp::create(rewriter,
         op.getLoc(),
         DenseIntElementsAttr::get(
             RankedTensorType::get(values.size(), IntegerType::get(op.getContext(), 16)), values
@@ -169,7 +168,7 @@ arith::ConstantOp createI16Const(R &rewriter, T &op, ArrayRef<int16_t> values) {
 
 template <typename R, class T>
 arith::ConstantOp createI32Const(R &rewriter, T &op, ArrayRef<int32_t> values) {
-    return rewriter.template create<arith::ConstantOp>(
+    return arith::ConstantOp::create(rewriter,
         op.getLoc(),
         DenseIntElementsAttr::get(
             RankedTensorType::get(
@@ -183,7 +182,7 @@ arith::ConstantOp createI32Const(R &rewriter, T &op, ArrayRef<int32_t> values) {
 template <typename R, class T>
 arith::ConstantOp
 createI32Const(R &rewriter, T &op, ArrayRef<int32_t> values, llvm::ArrayRef<int64_t> shape) {
-    return rewriter.template create<arith::ConstantOp>(
+    return arith::ConstantOp::create(rewriter,
         op.getLoc(),
         DenseIntElementsAttr::get(RankedTensorType::get(shape, rewriter.getI32Type()), values)
     );
@@ -191,7 +190,7 @@ createI32Const(R &rewriter, T &op, ArrayRef<int32_t> values, llvm::ArrayRef<int6
 
 template <typename R, class T>
 arith::ConstantOp createIConst(R &rewriter, T &op, ArrayRef<APInt> values) {
-    return rewriter.template create<arith::ConstantOp>(
+    return arith::ConstantOp::create(rewriter,
         op.getLoc(), DenseIntElementsAttr::get(
                          RankedTensorType::get(
                              static_cast<int64_t>(values.size()),
@@ -205,7 +204,7 @@ arith::ConstantOp createIConst(R &rewriter, T &op, ArrayRef<APInt> values) {
 template <typename R, class T>
 arith::ConstantOp
 createIConst(R &rewriter, T &op, ArrayRef<APInt> values, llvm::ArrayRef<int64_t> shape) {
-    return rewriter.template create<arith::ConstantOp>(
+    return arith::ConstantOp::create(rewriter,
         op.getLoc(), DenseIntElementsAttr::get(
                          RankedTensorType::get(
                              shape, IntegerType::get(op.getContext(), values[0].getBitWidth())
@@ -218,7 +217,7 @@ createIConst(R &rewriter, T &op, ArrayRef<APInt> values, llvm::ArrayRef<int64_t>
 template <typename R, class T>
 arith::ConstantOp createFConst(R &rewriter, T &op, ArrayRef<APFloat> values) {
     if (&values[0].getSemantics() == &llvm::APFloat::BFloat()) {
-        return rewriter.template create<arith::ConstantOp>(
+        return arith::ConstantOp::create(rewriter,
             op.getLoc(),
             DenseFPElementsAttr::get(
                 RankedTensorType::get(
@@ -229,7 +228,7 @@ arith::ConstantOp createFConst(R &rewriter, T &op, ArrayRef<APFloat> values) {
         );
     }
     else {
-        return rewriter.template create<arith::ConstantOp>(
+        return arith::ConstantOp::create(rewriter,
             op.getLoc(),
             DenseFPElementsAttr::get(
                 RankedTensorType::get(
@@ -245,7 +244,7 @@ template <typename R, class T>
 arith::ConstantOp
 createFConst(R &rewriter, T &op, ArrayRef<APFloat> values, llvm::ArrayRef<int64_t> shape) {
     if (&values[0].getSemantics() == &llvm::APFloat::BFloat()) {
-        return rewriter.template create<arith::ConstantOp>(
+        return arith::ConstantOp::create(rewriter,
             op.getLoc(),
             DenseFPElementsAttr::get(
                 RankedTensorType::get(shape, BFloat16Type::get(op.getContext())), values
@@ -253,7 +252,7 @@ createFConst(R &rewriter, T &op, ArrayRef<APFloat> values, llvm::ArrayRef<int64_
         );
     }
     else {
-        return rewriter.template create<arith::ConstantOp>(
+        return arith::ConstantOp::create(rewriter,
             op.getLoc(), DenseFPElementsAttr::get(
                              RankedTensorType::get(shape, Float32Type::get(op.getContext())), values
                          )

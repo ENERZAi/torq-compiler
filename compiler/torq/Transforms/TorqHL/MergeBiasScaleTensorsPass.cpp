@@ -77,18 +77,13 @@ class MergeBiasScalePattern : public OpRewritePattern<torq_hl::GenericOp> {
         );
 
         auto emptyMerged =
-            rewriter.create<tensor::EmptyOp>(genericOp.getLoc(), mergedType, ValueRange{});
+            tensor::EmptyOp::create(rewriter, genericOp.getLoc(), mergedType, ValueRange{});
 
         // fill the empty tensor with zeros, this will make folding easier later
 
-        auto zero = rewriter.create<arith::ConstantOp>(
-            genericOp.getLoc(), rewriter.getZeroAttr(mergedType.getElementType())
-        );
+        auto zero = arith::ConstantOp::create(rewriter, genericOp.getLoc(), rewriter.getZeroAttr(mergedType.getElementType()));
 
-        auto zeroMerged = rewriter
-                              .create<linalg::FillOp>(
-                                  genericOp.getLoc(), ValueRange(zero), ValueRange(emptyMerged)
-                              )
+        auto zeroMerged = linalg::FillOp::create(rewriter, genericOp.getLoc(), ValueRange(zero), ValueRange(emptyMerged))
                               .getResult(0);
 
         // insert the scale tensor into the merged tensor
@@ -103,19 +98,15 @@ class MergeBiasScalePattern : public OpRewritePattern<torq_hl::GenericOp> {
 
         SmallVector<OpFoldResult> insertStrides{mergedShape.size(), rewriter.getIndexAttr(1)};
 
-        auto scaleMerged = rewriter.create<tensor::InsertSliceOp>(
-            genericOp.getLoc(), genericOp.getScale(), zeroMerged, insertOffset, insertSizes,
-            insertStrides
-        );
+        auto scaleMerged = tensor::InsertSliceOp::create(rewriter, genericOp.getLoc(), genericOp.getScale(), zeroMerged, insertOffset, insertSizes,
+        insertStrides);
 
         // insert the bias tensor into the merged tensor
 
         insertOffset[insertOffset.size() - 1] = rewriter.getIndexAttr(1);
 
-        auto merged = rewriter.create<tensor::InsertSliceOp>(
-            genericOp.getLoc(), genericOp.getBias(), scaleMerged, insertOffset, insertSizes,
-            insertStrides
-        );
+        auto merged = tensor::InsertSliceOp::create(rewriter, genericOp.getLoc(), genericOp.getBias(), scaleMerged, insertOffset, insertSizes,
+        insertStrides);
 
         // rewrite the generic op to use the merged tensor
 
