@@ -703,7 +703,8 @@ LData &LData::partitionByIndexParity2D() {
 // SlicePrivate class
 //
 
-struct SlicePrivate {
+class SlicePrivate {
+  public:
     // Represents a for loop in the kernel
     struct Loop {
         int count;
