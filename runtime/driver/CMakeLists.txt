@@ -53,7 +53,6 @@ set(torq_deps
     iree::hal::utils::semaphore_base
     iree::tooling::numpy_io
     iree::io::stream
-    iree::io::stdio_stream
     schemas::torq_executable_def_c_fbs
     torq_hw::TorqHw
 )
